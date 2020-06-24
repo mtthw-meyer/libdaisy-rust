@@ -1,0 +1,36 @@
+[package]
+authors = ["Matthew Meyer <mtthw.meyer@gmail.com>"]
+edition = "2018"
+description = "Hardware Abstraction Layer implementation for Daisy boards"
+keywords = ["arm", "cortex-m", "stm32h7xx", "stm32h750", "hal", "embedded-hal", "daisy"]
+readme = "README.md"
+name = "libdaisy-rust"
+version = "0.1.0"
+
+[dependencies]
+cortex-m = "0.6.0"
+cortex-m-rt = "0.6.10"
+cortex-m-semihosting = "0.3.3"
+#panic-halt = "0.2.0"
+stm32h7xx-hal = { version = "0.5.0", features = ["stm32h750v","rt"] }
+
+[dev-dependencies]
+cortex-m-log = { version = "~0.6", features = ["itm"] }
+panic-itm = "~0.4.1"
+
+# this lets you use `cargo fix`!
+[[bin]]
+name = "libdaisy-rust"
+test = false
+bench = false
+
+[profile.dev]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size in flash
+incremental = false
+
+[profile.release]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size in flash
+lto = true # better optimizations
+opt-level = "s" # optimize for binary size

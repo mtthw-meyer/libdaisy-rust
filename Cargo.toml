@@ -10,17 +10,12 @@ version = "0.1.0"
 [dependencies]
 cfg-if = "0.1.10"
 cortex-m = "0.6.0"
-cortex-m-log = { version = "~0.6", features = ["semihosting"] }
+cortex-m-log = { version = "~0.6" }
 cortex-m-rt = "0.6.10"
 cortex-m-rtic = "0.5.3"
-cortex-m-semihosting = "0.3.5"
+embedded-hal = "0.2.3"
 panic-halt = "0.2.0"
-panic-semihosting = "0.5.3"
-stm32h7xx-hal = { version = "0.5.0", features = ["stm32h750v","rt"] }
-
-[dev-dependencies]
-panic-itm = "~0.4.1"
-
+stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"] }
 
 # this lets you use `cargo fix`!
 [[bin]]

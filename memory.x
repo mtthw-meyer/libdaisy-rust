@@ -15,3 +15,22 @@ MEMORY
 /* stm32h7xx-hal uses a PROVIDE that expects RAM symbol to exist
 */
 REGION_ALIAS(RAM, DTCMRAM);
+
+
+SECTIONS
+{
+	.sdram_bss (NOLOAD) :
+	{
+		. = ALIGN(4);
+		_ssdram_bss = .;
+
+		PROVIDE(__sdram_bss_start = _ssdram_bss);
+		*(.sdram_bss)
+		*(.sdram_bss*)
+		. = ALIGN(4);
+		_esdram_bss = .;
+
+		PROVIDE(__sdram_bss_end = _esdram_bss);
+	} > SDRAM
+
+}

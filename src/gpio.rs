@@ -85,7 +85,7 @@ impl GPIO {
         let led = gpioc.pc7.into_push_pull_output();
         GPIO {
             led,
-            daisy0: gpiob.pb11,
+            daisy0: gpiob.pb12,
             daisy1: gpioc.pc11,
             daisy2: gpioc.pc10,
             daisy3: gpioc.pc9,

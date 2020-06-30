@@ -41,6 +41,7 @@ use crate::*;
 
 pub struct GPIO {
     pub led: SeedLed,
+    codec: gpio::gpiob::PB11<Output<PushPull>>,
     pub daisy0: gpio::gpiob::PB12<Analog>,
     pub daisy1: gpio::gpioc::PC11<Analog>,
     pub daisy2: gpio::gpioc::PC10<Analog>,
@@ -83,8 +84,10 @@ impl GPIO {
         gpiog: gpio::gpiog::Parts,
     ) -> GPIO {
         let led = gpioc.pc7.into_push_pull_output();
+        let codec = gpiob.pb11.into_push_pull_output();
         GPIO {
             led,
+            codec,
             daisy0: gpiob.pb12,
             daisy1: gpioc.pc11,
             daisy2: gpioc.pc10,
@@ -117,5 +120,11 @@ impl GPIO {
             daisy29: gpiob.pb14,
             daisy30: gpiob.pb15,
         }
+    }
+
+    pub fn reset_codec(&mut self) {
+        self.codec.set_low().unwrap();
+        delay_ms(1);
+        self.codec.set_high().unwrap();
     }
 }

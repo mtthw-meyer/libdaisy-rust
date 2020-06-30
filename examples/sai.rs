@@ -18,7 +18,6 @@ use libdaisy_rust::*;
 )]
 const APP: () = {
     struct Resources {
-        clock_rate_hertz: u32,
         seed_led: gpio::SeedLed,
         button1: gpio::Daisy28<Input<PullUp>>,
         button1_state: Debouncer<u8, Repeat4>,
@@ -29,24 +28,24 @@ const APP: () = {
         let system = system::System::init(ctx.core, ctx.device);
 
         let now = ctx.start;
-        let clock_rate_hertz: Hertz = CLOCK_RATE_MHZ.into();
-        let clock_rate_hertz = clock_rate_hertz.0;
 
         let button1 = system.gpio.daisy28.into_pull_up_input();
 
         ctx.schedule
-            .audio_callback(now + (clock_rate_hertz / 500).cycles())
+            .audio_callback(now + (CLK_CYCLES_PER_MS * 250).cycles())
             .unwrap();
 
         init::LateResources {
-            clock_rate_hertz,
             seed_led: system.gpio.led,
             button1,
             button1_state: debounce_4(),
         }
     }
 
-    #[task( schedule = [audio_callback], resources = [clock_rate_hertz, seed_led, button1, button1_state] )]
+    #[task( binds = SAI1 )]
+    fn sai_callback(ctx: sai_callback::Context) {}
+
+    #[task( schedule = [audio_callback], resources = [seed_led, button1, button1_state] )]
     fn audio_callback(ctx: audio_callback::Context) {
         static mut LED_IS_ON: bool = false;
 
@@ -67,7 +66,7 @@ const APP: () = {
         }
 
         ctx.schedule
-            .audio_callback(ctx.scheduled + (*ctx.resources.clock_rate_hertz / 500).cycles())
+            .audio_callback(ctx.scheduled + (CLK_CYCLES_PER_MS * 250).cycles())
             .unwrap();
     }
 

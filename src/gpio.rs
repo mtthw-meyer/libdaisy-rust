@@ -12,7 +12,7 @@ pub use gpio::gpioa::PA5 as Daisy22;
 pub use gpio::gpioa::PA6 as Daisy19;
 pub use gpio::gpioa::PA7 as Daisy18;
 pub use gpio::gpiob::PB1 as Daisy17;
-pub use gpio::gpiob::PB11 as Daisy0;
+pub use gpio::gpiob::PB12 as Daisy0;
 pub use gpio::gpiob::PB14 as Daisy29;
 pub use gpio::gpiob::PB15 as Daisy30;
 pub use gpio::gpiob::PB4 as Daisy9;
@@ -41,7 +41,7 @@ use crate::*;
 
 pub struct GPIO {
     pub led: SeedLed,
-    pub daisy0: gpio::gpiob::PB11<Analog>,
+    pub daisy0: gpio::gpiob::PB12<Analog>,
     pub daisy1: gpio::gpioc::PC11<Analog>,
     pub daisy2: gpio::gpioc::PC10<Analog>,
     pub daisy3: gpio::gpioc::PC9<Analog>,
@@ -80,8 +80,6 @@ impl GPIO {
         gpiob: gpio::gpiob::Parts,
         gpioc: gpio::gpioc::Parts,
         gpiod: gpio::gpiod::Parts,
-        gpioe: gpio::gpioe::Parts,
-        gpiof: gpio::gpiof::Parts,
         gpiog: gpio::gpiog::Parts,
     ) -> GPIO {
         let led = gpioc.pc7.into_push_pull_output();

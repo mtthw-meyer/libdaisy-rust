@@ -37,14 +37,13 @@ pub const MEGA: u32 = 1_000_000;
 pub const MILLI: u32 = 1_000;
 pub const AUDIO_FRAME_RATE_HZ: u32 = 1000;
 pub const AUDIO_BLOCK_SIZE_HZ: usize = 48;
-pub const AUDIO_SAMPLE_SIZE_HZ: usize = 48_001;
-pub const CLOCK_RATE_MHZ: MegaHertz = MegaHertz(400_u32);
+pub const AUDIO_SAMPLE_HZ: Hertz = Hertz(48_000);
+pub const CLOCK_RATE_HZ: Hertz = Hertz(400_000_000_u32);
 
-pub const CLK_CYCLES_PER_MS: u32 = CLOCK_RATE_MHZ.0 * MEGA / MILLI;
+pub const CLK_CYCLES_PER_MS: u32 = CLOCK_RATE_HZ.0 / MILLI;
 
 pub type FrameTimer = stm32h7xx_hal::timer::Timer<stm32h7xx_hal::stm32::TIM2>;
 
-pub mod audio;
 pub mod gpio;
 pub mod hid;
 pub mod system;

@@ -15,7 +15,6 @@ use stm32h7xx_hal::time::Hertz;
 )]
 const APP: () = {
     struct Resources {
-        clock_rate_hertz: u32,
         seed_led: gpio::SeedLed,
     }
 
@@ -25,21 +24,18 @@ const APP: () = {
         // semantically, the monotonic timer is frozen at time "zero" during `init`
         // NOTE do *not* call `Instant::now` in this context; it will return a nonsense value
         let now = ctx.start; // the start time of the system
-        let clock_rate_hertz: Hertz = CLOCK_RATE_MHZ.into();
-        let clock_rate_hertz = clock_rate_hertz.0;
 
         // Schedule `blink` to run 250ms in the future
         ctx.schedule
-            .blink(now + (clock_rate_hertz / 4).cycles())
+            .blink(now + (CLOCK_RATE_HZ.0 / 4).cycles())
             .unwrap();
 
         init::LateResources {
-            clock_rate_hertz,
             seed_led: system.gpio.led,
         }
     }
 
-    #[task( schedule = [blink], resources = [clock_rate_hertz, seed_led] )]
+    #[task( schedule = [blink], resources = [seed_led] )]
     fn blink(ctx: blink::Context) {
         static mut LED_IS_ON: bool = false;
 
@@ -51,7 +47,7 @@ const APP: () = {
         *LED_IS_ON = !(*LED_IS_ON);
 
         ctx.schedule
-            .blink(ctx.scheduled + (*ctx.resources.clock_rate_hertz / 4).cycles())
+            .blink(ctx.scheduled + (CLOCK_RATE_HZ.0 / 4).cycles())
             .unwrap();
     }
 

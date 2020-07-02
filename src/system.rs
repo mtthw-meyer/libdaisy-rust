@@ -10,54 +10,56 @@ pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
 use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::sai;
 use stm32h7xx_hal::stm32;
+use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
 use stm32h7xx_hal::timer::{Event, Timer};
-use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 
 use crate::*;
 
 const HSE_CLOCK_MHZ: MegaHertz = MegaHertz(16);
 const HCLK_MHZ: MegaHertz = MegaHertz(200);
+const HCLK2_MHZ: MegaHertz = MegaHertz(200);
 
 // PCLKx
-const PCLK_HZ_DIV2: Hertz  = Hertz(CLOCK_RATE_HZ.0 / 2);
+const PCLK_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 4);
 // 49_152_344
 // PLL1
-const PLL1_P_HZ: Hertz  = CLOCK_RATE_HZ;
-const PLL1_Q_HZ: Hertz  = Hertz(CLOCK_RATE_HZ.0 / 18);
-const PLL1_R_HZ: Hertz  = Hertz(CLOCK_RATE_HZ.0 / 32);
+const PLL1_P_HZ: Hertz = CLOCK_RATE_HZ;
+const PLL1_Q_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 18);
+const PLL1_R_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 32);
 // PLL2
 const PLL2_P_HZ: Hertz = Hertz(3_125_000);
 const PLL2_Q_HZ: Hertz = Hertz(PLL2_P_HZ.0 / 2); // No divder given, what's the default?
 const PLL2_R_HZ: Hertz = Hertz(PLL2_P_HZ.0 / 4); // No divder given, what's the default?
 // PLL3
-const PLL3_P_HZ: Hertz = Hertz(AUDIO_SAMPLE_HZ.0 * 256); // 48Khz * 256 = 12_288_000
+// 48Khz * 256 = 12_288_000
+const PLL3_P_HZ: Hertz = Hertz(AUDIO_SAMPLE_HZ.0 * 257);
 const PLL3_Q_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 4);
 const PLL3_R_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 16);
 
 const BLOCK_SIZE_MAX: usize = 48;
 const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
+
+#[link_section = ".sram1_bss"]
 #[no_mangle]
-#[link_section = ".sdram1_bss"]
 static mut buf_rx: [u32; BUFFER_SIZE] = [0; BUFFER_SIZE];
+#[link_section = ".sram1_bss"]
 #[no_mangle]
-#[link_section = ".sdram1_bss"]
 static mut buf_tx: [u32; BUFFER_SIZE] = [0; BUFFER_SIZE];
+
 
 #[allow(non_snake_case)]
 pub struct System {
-    pub log: Log,
+    pub log: Log, 
     pub gpio: crate::gpio::GPIO,
     pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
     pub EXTI: stm32::EXTI,
     pub SYSCFG: stm32::SYSCFG,
-    
 }
 
 impl System {
     pub fn init(mut core: rtic::Peripherals, device: stm32::Peripherals) -> System {
-
         cfg_if::cfg_if! {
             if #[cfg(debug_assertions)] {
                 use cortex_m_log::printer::semihosting::Semihosting;
@@ -68,6 +70,7 @@ impl System {
                 let mut log = Dummy::new();
             }
         }
+
         // println!(log, "Starting system init");
         // Power
         let pwr = device.PWR.constrain();
@@ -79,25 +82,24 @@ impl System {
             .constrain()
             .use_hse(HSE_CLOCK_MHZ)
             .sys_ck(CLOCK_RATE_HZ)
-            .pclk1(PCLK_HZ_DIV2) // DMA clock
+            // .pclk1(PCLK_HZ) // DMA clock
             // PLL1
-            .pll1_p_ck(PLL1_P_HZ)
-            .pll1_q_ck(PLL1_Q_HZ)
-            .pll1_r_ck(PLL1_R_HZ)
+            // .pll1_p_ck(PLL1_P_HZ)
+            // .pll1_q_ck(PLL1_Q_HZ)
+            // .pll1_r_ck(PLL1_R_HZ)
             // PLL2
-            .pll2_p_ck(PLL2_P_HZ)
-            .pll2_q_ck(PLL2_Q_HZ)
-            .pll2_r_ck(PLL2_R_HZ)
+            // .pll2_p_ck(PLL2_P_HZ)
+            // .pll2_q_ck(PLL2_Q_HZ)
+            // .pll2_r_ck(PLL2_R_HZ)
             // PLL3
             .pll3_p_ck(PLL3_P_HZ)
-            .pll3_q_ck(PLL3_Q_HZ)
-            .pll3_r_ck(PLL3_R_HZ)
-        
+            // .pll3_q_ck(PLL3_Q_HZ)
+            // .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &device.SYSCFG);
-        
+
         print_clocks(&mut log, &ccdr);
 
-        // TODO - Use stm32h7-fmc to setup SDRAM
+        // TODO - Use stm32h7-fmc to setup SDRAM?
         // println!(log, "Setting up SDRAM...");
 
         // TODO - Timer
@@ -137,7 +139,7 @@ impl System {
             qspi_handle.device = DSY_QSPI_DEVICE_IS25LP064A;
             qspi_handle.mode   = DSY_QSPI_MODE_DSY_MEMORY_MAPPED;
             pin_group          = qspi_handle.pin_config;
-        
+
             pin_group[DSY_QSPI_PIN_IO0] = dsy_pin(DSY_GPIOF, 8);
             pin_group[DSY_QSPI_PIN_IO1] = dsy_pin(DSY_GPIOF, 9);
             pin_group[DSY_QSPI_PIN_IO2] = dsy_pin(DSY_GPIOF, 7);
@@ -147,7 +149,7 @@ impl System {
         */
 
         // println!(log, "Setup up SAI...");
-        
+
         let sai1_per = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
         let mut audio = device.SAI1.i2s_ch_a(
             pins_a,
@@ -158,10 +160,10 @@ impl System {
         );
 
         unsafe {
-            audio.config_dma(device.DMA1, &buf_rx[0], &buf_tx[0]);
+            audio.config_dma(device.DMA1, device.DMAMUX1, buf_rx.as_ptr() as u32, buf_tx.as_ptr() as u32);
         }
 
-        audio.enable();
+        // audio.enable();
 
         // Setup GPIOs
         let gpio = crate::gpio::GPIO::init(gpioa, gpiob, gpioc, gpiod, gpiog);

@@ -8,6 +8,8 @@
 
 extern crate cfg_if;
 
+use rtic::cyccnt::U32Ext as rticU32Ext;
+
 use cortex_m::asm::delay as delay_cycles;
 
 pub use stm32h7xx_hal::hal::digital::v2::InputPin;
@@ -23,11 +25,11 @@ pub use cortex_m_log::println;
 
 cfg_if::cfg_if! {
     if #[cfg(debug_assertions)] {
-        extern crate panic_semihosting;
+        use panic_semihosting as _;
         pub type Log = cortex_m_log::printer::semihosting::Semihosting<cortex_m_log::modes::InterruptFree, cortex_m_semihosting::hio::HStdout>;
     }
     else {
-        extern crate panic_halt;
+        use panic_halt as _;
         use cortex_m_log::printer::Dummy;
         pub type Log = cortex_m_log::printer::dummy::Dummy;
     }
@@ -52,3 +54,7 @@ pub mod system;
 pub fn delay_ms(ms: u32) {
     delay_cycles(ms * CLK_CYCLES_PER_MS);
 }
+
+// pub fn ms_to_cycles(ms: u32) {
+
+// }

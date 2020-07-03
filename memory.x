@@ -15,58 +15,9 @@ MEMORY
 /* stm32h7xx-hal uses a PROVIDE that expects RAM symbol to exist
 */
 REGION_ALIAS(RAM, DTCMRAM);
-_estack = 0x20020000;
 
 SECTIONS
 {
-
-	.data :
-	{
-		. = ALIGN(4);
-		_sdata = .;
-
-		PROVIDE(__data_start__ = _sdata);
-		*(.data)
-		*(.data*)
-		. = ALIGN(4);
-		_edata = .;
-
-		PROVIDE(__data_end__ = _edata);
-	} > SRAM AT >FLASH
-
-	_sidata = LOADADDR(.data);
-
-	.bss (NOLOAD) :
-	{
-		. = ALIGN(4);
-		_sbss = .;
-
-		PROVIDE(__bss_start__ = _sbss);
-		*(.bss)
-		*(.bss*)
-		*(COMMON)
-		. = ALIGN(4);
-		_ebss = .;
-
-		PROVIDE(__bss_end__ = _ebss);
-	} > SRAM
-
-	PROVIDE(end = .); 
-
-	.dtcmram_bss (NOLOAD) :
-	{
-		. = ALIGN(4);
-		_sdtcmram_bss = .;
-
-		PROVIDE(__dtcmram_bss_start__ = _sdtcmram_bss);
-		*(.dtcmram_bss)
-		*(.dtcmram_bss*)
-		. = ALIGN(4);
-		_edtcmram_bss = .;
-
-		PROVIDE(__dtcmram_bss_end__ = _edtcmram_bss);
-	} > DTCMRAM
-
 	.sram1_bss (NOLOAD) :
 	{
 		. = ALIGN(4);

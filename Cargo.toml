@@ -9,9 +9,9 @@ version = "0.1.0"
 
 [dependencies]
 cfg-if = "0.1.10"
-cortex-m = "0.6.0"
+cortex-m = "0.6.2"
 cortex-m-log = { version = "~0.6", features=["semihosting"] }
-cortex-m-rt = "0.6.10"
+cortex-m-rt = "0.6.12"
 cortex-m-rtic = "0.5.3"
 cortex-m-semihosting = "0.3.5"
 debouncr = "0.1.2"
@@ -19,11 +19,6 @@ panic-halt = "0.2.0"
 panic-semihosting = "0.5.3"
 #stm32h7-fmc = { version = "0.2.0", features = ["stm32h750v"] }
 stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"], path = "../stm32h7xx-hal-fork"}
-
-
-[dependencies.embedded-hal]
-git = "https://github.com/eldruin/embedded-hal.git"
-branch = "i2s-v0.2.x"
 
 # this lets you use `cargo fix`!
 #[[bin]]

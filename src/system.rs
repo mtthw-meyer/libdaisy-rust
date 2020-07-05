@@ -7,7 +7,9 @@ use cortex_m::peripheral::DWT;
 use rtic;
 use stm32h7xx_hal::gpio;
 pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
+use stm32h7xx_hal::interrupt;
 use stm32h7xx_hal::prelude::*;
+use stm32h7xx_hal::rcc::rec::ResetEnable;
 use stm32h7xx_hal::sai;
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
@@ -58,7 +60,7 @@ pub struct System {
 
 impl System {
     pub fn init(mut core: rtic::Peripherals, device: stm32::Peripherals) -> System {
-    // pub fn init(mut core: cortex_m::peripheral::Peripherals, device: stm32::Peripherals) -> System {
+        // pub fn init(mut core: cortex_m::peripheral::Peripherals, device: stm32::Peripherals) -> System {
         cfg_if::cfg_if! {
             if #[cfg(debug_assertions)] {
                 use cortex_m_log::printer::semihosting::Semihosting;
@@ -97,7 +99,6 @@ impl System {
             .freeze(vos, &device.SYSCFG);
 
         // print_clocks(&mut log, &ccdr);
-
         // TODO - Use stm32h7-fmc to setup SDRAM?
         // println!(log, "Setting up SDRAM...");
 
@@ -111,8 +112,8 @@ impl System {
 
         let mut timer2 = device
             .TIM2
-            .timer(1.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
-        timer2.listen(Event::TimeOut);
+            .timer(1000.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
+        // timer2.listen(Event::TimeOut);
 
         let mut timer3 = device
             .TIM3
@@ -149,12 +150,14 @@ impl System {
             pin_group[DSY_QSPI_PIN_IO2] = dsy_pin(DSY_GPIOF, 7);
             pin_group[DSY_QSPI_PIN_IO3] = dsy_pin(DSY_GPIOF, 6);
             pin_group[DSY_QSPI_PIN_CLK] = dsy_pin(DSY_GPIOF, 10);
-            pin_group[DSY_QSPI_PIN_NCS] = dsy_pin(DSY_GPIOG, 6);
+            pin_group[DSY_QSPI_PIN_NCS] =
+            dsy_pin(DSY_GPIOG, 6);
         */
-
         println!(log, "Setup up SAI...");
 
-        let sai1_per = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        let sai1_rec = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        ccdr.peripheral.DMA1.enable().reset();
+
         let buf_rx_base_addr: u32;
         let buf_tx_base_addr: u32;
         unsafe {
@@ -163,20 +166,57 @@ impl System {
         }
         let mut audio = device.SAI1.i2s_ch_a(
             pins_a,
-            48.khz(),
+            AUDIO_SAMPLE_HZ,
             sai::I2SBitRate::BITS_24,
-            sai1_per,
+            sai1_rec,
             &ccdr.clocks,
             Some((0, buf_rx_base_addr)),
             Some((1, buf_tx_base_addr)),
+            AUDIO_BLOCK_SIZE,
         );
 
         audio.enable();
+        unsafe {
+            // core.NVIC.set_priority(interrupt::DMA1_STR0, 32);
+            // stm32::NVIC::unmask(interrupt::DMA1_STR0);
+            // stm32::NVIC::unmask(interrupt::SAI1);
+        };
 
         // Setup GPIOs
         let gpio = crate::gpio::GPIO::init(gpioa, gpiob, gpioc, gpiod, gpiog);
 
         println!(log, "System init done!");
+
+        println!(
+            log,
+            "PLL3\nP: {:?}\nQ: {:?}\nR: {:?}",
+            ccdr.clocks.pll3_p_ck(),
+            ccdr.clocks.pll3_q_ck(),
+            ccdr.clocks.pll3_r_ck()
+        );
+
+        unsafe {
+            let ptr = &*stm32::SAI1::ptr() as *const _ as *const u32;
+            // println!(log, "{:#010X?}: {:#010X}", ptr, *ptr);
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(1), *(ptr.offset(1)));
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(2), *(ptr.offset(2)));
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(3), *(ptr.offset(3)));
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(4), *(ptr.offset(4)));
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(5), *(ptr.offset(5)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(6), *(ptr.offset(6)));
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(7), *(ptr.offset(7)));
+            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(8), *(ptr.offset(8)));
+
+            let ptr = &*stm32::DMA1::ptr() as *const _ as *const u32;
+            println!(log, "{:#010X?}: {:#010X}", ptr, *ptr);
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(1), *(ptr.offset(1)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(4), *(ptr.offset(4)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(5), *(ptr.offset(5)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(6), *(ptr.offset(6)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(7), *(ptr.offset(7)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(8), *(ptr.offset(8)));
+            println!(log, "{:#010X?}: {:#010X}", ptr.offset(9), *(ptr.offset(9)));
+        }
 
         System {
             log,

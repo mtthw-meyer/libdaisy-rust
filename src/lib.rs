@@ -38,7 +38,7 @@ cfg_if::cfg_if! {
 pub const MEGA: u32 = 1_000_000;
 pub const MILLI: u32 = 1_000;
 pub const AUDIO_FRAME_RATE_HZ: u32 = 1000;
-pub const AUDIO_BLOCK_SIZE_HZ: usize = 48;
+pub const AUDIO_BLOCK_SIZE: u16 = 48;
 pub const AUDIO_SAMPLE_HZ: Hertz = Hertz(48_000);
 pub const CLOCK_RATE_HZ: Hertz = Hertz(400_000_000_u32);
 

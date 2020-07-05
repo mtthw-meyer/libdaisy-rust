@@ -1,7 +1,7 @@
 // use embedded_hal;
-pub use stm32h7xx_hal::hal::digital::v2::InputPin;
 use stm32h7xx_hal::gpio;
 pub use stm32h7xx_hal::gpio::{Analog, Input, Output, PullDown, PullUp, PushPull};
+pub use stm32h7xx_hal::hal::digital::v2::InputPin;
 
 pub enum Never {}
 

@@ -11,6 +11,8 @@ use stm32h7xx_hal::interrupt;
 use stm32h7xx_hal::stm32;
 
 use libdaisy_rust::*;
+use libdaisy_rust::system::IoBuffer;
+use libdaisy_rust::system::BUFFER_SIZE;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -21,6 +23,8 @@ const APP: () = {
     struct Resources {
         seed_led: gpio::SeedLed,
         log: Log,
+        buf_in: &'static mut IoBuffer,
+        buf_out: &'static mut IoBuffer,
     }
 
     #[init( schedule = [blink] )]
@@ -42,6 +46,8 @@ const APP: () = {
         init::LateResources {
             seed_led: system.gpio.led,
             log: system.log,
+            buf_in: system.input,
+            buf_out: system.output,
         }
     }
 
@@ -68,10 +74,15 @@ const APP: () = {
 
     #[task( binds = DMA1_STR0, resources = [log] )]
     fn listener(ctx: listener::Context) {
-        println!(ctx.resources.log, "Interrupting cow!")
+        static mut has_run: bool = false;
+
+        if !(*has_run) {
+            println!(ctx.resources.log, "Interrupting cow!");
+            *has_run = true;
+        }
     }
 
-    #[task( binds = DMA1_STR1, resources = [log] )]
+    #[task( binds = DMA1_STR1, resources =  [log, buf_in, buf_out] )]
     fn listener2(ctx: listener2::Context) {
         static mut has_run: bool = false;
 
@@ -79,7 +90,13 @@ const APP: () = {
             println!(ctx.resources.log, "Interrupting cow2!");
             *has_run = true;
         }
+        for (input, output) in ctx.resources.buf_in.iter().zip(ctx.resources.buf_out.iter_mut()) {
+            *output = *input;
+        }
     }
+
+    #[task( binds = SAI1 )]
+    fn nada(_: nada::Context) {}
 
     extern "C" {
         fn TIM4();

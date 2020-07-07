@@ -12,6 +12,7 @@ use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::rcc::rec::ResetEnable;
 use stm32h7xx_hal::sai;
 use stm32h7xx_hal::stm32;
+use stm32h7xx_hal::device;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
 use stm32h7xx_hal::timer::{Event, Timer};
@@ -40,14 +41,18 @@ const PLL3_Q_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 4);
 const PLL3_R_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 16);
 
 const BLOCK_SIZE_MAX: usize = 48;
-const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
+pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
+
+pub type IoBuffer = [u32; BUFFER_SIZE];
+
+// 805306368 805306368
 
 #[link_section = ".sram1_bss"]
 #[no_mangle]
-static mut buf_rx: [u32; BUFFER_SIZE] = [0; BUFFER_SIZE];
+static mut buf_tx: IoBuffer = [0; BUFFER_SIZE];
 #[link_section = ".sram1_bss"]
 #[no_mangle]
-static mut buf_tx: [u32; BUFFER_SIZE] = [0; BUFFER_SIZE];
+static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
 
 #[allow(non_snake_case)]
 pub struct System {
@@ -56,10 +61,12 @@ pub struct System {
     // pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
     pub EXTI: stm32::EXTI,
     pub SYSCFG: stm32::SYSCFG,
+    pub input: &'static mut IoBuffer,
+    pub output: &'static mut IoBuffer,
 }
 
 impl System {
-    pub fn init(mut core: rtic::Peripherals, device: stm32::Peripherals) -> System {
+    pub fn init(_: rtic::Peripherals, device: stm32::Peripherals) -> System {
         // pub fn init(mut core: cortex_m::peripheral::Peripherals, device: stm32::Peripherals) -> System {
         cfg_if::cfg_if! {
             if #[cfg(debug_assertions)] {
@@ -85,35 +92,41 @@ impl System {
             .sys_ck(CLOCK_RATE_HZ)
             // .pclk1(PCLK_HZ) // DMA clock
             // PLL1
-            // .pll1_p_ck(PLL1_P_HZ)
-            // .pll1_q_ck(PLL1_Q_HZ)
-            // .pll1_r_ck(PLL1_R_HZ)
+            .pll1_p_ck(PLL1_P_HZ)
+            .pll1_q_ck(PLL1_Q_HZ)
+            .pll1_r_ck(PLL1_R_HZ)
             // PLL2
             // .pll2_p_ck(PLL2_P_HZ)
             // .pll2_q_ck(PLL2_Q_HZ)
             // .pll2_r_ck(PLL2_R_HZ)
             // PLL3
             .pll3_p_ck(PLL3_P_HZ)
-            // .pll3_q_ck(PLL3_Q_HZ)
-            // .pll3_r_ck(PLL3_R_HZ)
+            .pll3_q_ck(PLL3_Q_HZ)
+            .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &device.SYSCFG);
 
         // print_clocks(&mut log, &ccdr);
         // TODO - Use stm32h7-fmc to setup SDRAM?
-        // println!(log, "Setting up SDRAM...");
+        // https://crates.io/crates/stm32h7-fmc
+        // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/dev_sdram.c
 
-        // TODO - Timer
-        // println!(log, "Setting up timers...");
-        // Initialize (enable) the monotonic timer (CYCCNT)
+        let mut core = device::CorePeripherals::take().unwrap();
+        // MPU
+        // Configure MPU per Seed
+        // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/sys_system.c
+        // core.MPU.
+
+        // Timers
+        // TODO
+        // ?
         core.DCB.enable_trace();
-        // required on Cortex-M7 devices that software lock the DWT (e.g. STM32F7)
         DWT::unlock();
         core.DWT.enable_cycle_counter();
 
         let mut timer2 = device
             .TIM2
             .timer(1000.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
-        // timer2.listen(Event::TimeOut);
+        timer2.listen(Event::TimeOut);
 
         let mut timer3 = device
             .TIM3
@@ -162,7 +175,7 @@ impl System {
         let buf_tx_base_addr: u32;
         unsafe {
             buf_rx_base_addr = buf_rx.as_ptr() as u32;
-            buf_tx_base_addr = buf_rx.as_ptr() as u32;
+            buf_tx_base_addr = buf_tx.as_ptr() as u32;
         }
         let mut audio = device.SAI1.i2s_ch_a(
             pins_a,
@@ -170,61 +183,35 @@ impl System {
             sai::I2SBitRate::BITS_24,
             sai1_rec,
             &ccdr.clocks,
-            Some((0, buf_rx_base_addr)),
-            Some((1, buf_tx_base_addr)),
+            Some((0, buf_tx_base_addr)),
+            Some((1, buf_rx_base_addr)),
             AUDIO_BLOCK_SIZE,
         );
 
         audio.enable();
-        unsafe {
-            // core.NVIC.set_priority(interrupt::DMA1_STR0, 32);
-            // stm32::NVIC::unmask(interrupt::DMA1_STR0);
-            // stm32::NVIC::unmask(interrupt::SAI1);
-        };
 
         // Setup GPIOs
         let gpio = crate::gpio::GPIO::init(gpioa, gpiob, gpioc, gpiod, gpiog);
 
+        // Setup cache
+        let scb = unsafe { &*stm32::SCB::ptr() };
+        core.SCB.invalidate_icache();
+        core.SCB.enable_icache();
+        core.SCB.clean_invalidate_dcache(&mut core.CPUID);
+        core.SCB.enable_dcache(&mut core.CPUID);
+
         println!(log, "System init done!");
 
-        println!(
-            log,
-            "PLL3\nP: {:?}\nQ: {:?}\nR: {:?}",
-            ccdr.clocks.pll3_p_ck(),
-            ccdr.clocks.pll3_q_ck(),
-            ccdr.clocks.pll3_r_ck()
-        );
-
         unsafe {
-            let ptr = &*stm32::SAI1::ptr() as *const _ as *const u32;
-            // println!(log, "{:#010X?}: {:#010X}", ptr, *ptr);
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(1), *(ptr.offset(1)));
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(2), *(ptr.offset(2)));
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(3), *(ptr.offset(3)));
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(4), *(ptr.offset(4)));
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(5), *(ptr.offset(5)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(6), *(ptr.offset(6)));
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(7), *(ptr.offset(7)));
-            // println!(log, "{:#010X?}: {:#010X}", ptr.offset(8), *(ptr.offset(8)));
-
-            let ptr = &*stm32::DMA1::ptr() as *const _ as *const u32;
-            println!(log, "{:#010X?}: {:#010X}", ptr, *ptr);
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(1), *(ptr.offset(1)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(4), *(ptr.offset(4)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(5), *(ptr.offset(5)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(6), *(ptr.offset(6)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(7), *(ptr.offset(7)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(8), *(ptr.offset(8)));
-            println!(log, "{:#010X?}: {:#010X}", ptr.offset(9), *(ptr.offset(9)));
-        }
-
         System {
             log,
             gpio,
             // audio,
             EXTI: device.EXTI,
             SYSCFG: device.SYSCFG,
-        }
+            input: & mut buf_rx,
+            output: & mut buf_tx,
+        }}
     }
 }
 

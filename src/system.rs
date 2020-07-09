@@ -1,21 +1,20 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
-#![allow(unused_imports)]
+
+pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
+
 
 use cortex_m::peripheral::DWT;
+use cortex_mpu;
 
 use rtic;
-use stm32h7xx_hal::gpio;
-pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
-use stm32h7xx_hal::interrupt;
+
 use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::rcc::rec::ResetEnable;
-use stm32h7xx_hal::sai;
-use stm32h7xx_hal::stm32;
-use stm32h7xx_hal::device;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
 use stm32h7xx_hal::timer::{Event, Timer};
+use stm32h7xx_hal::{device, dma, dma::DmaExt, gpio, interrupt, sai, stm32};
 
 use crate::*;
 
@@ -54,15 +53,12 @@ static mut buf_tx: IoBuffer = [0; BUFFER_SIZE];
 #[no_mangle]
 static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
 
-#[allow(non_snake_case)]
 pub struct System {
     pub log: Log,
     pub gpio: crate::gpio::GPIO,
-    // pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
-    pub EXTI: stm32::EXTI,
-    pub SYSCFG: stm32::SYSCFG,
-    pub input: &'static mut IoBuffer,
-    pub output: &'static mut IoBuffer,
+    pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
+    pub exit: stm32::EXTI,
+    pub syscfg: stm32::SYSCFG,
 }
 
 impl System {
@@ -90,7 +86,7 @@ impl System {
             .constrain()
             .use_hse(HSE_CLOCK_MHZ)
             .sys_ck(CLOCK_RATE_HZ)
-            // .pclk1(PCLK_HZ) // DMA clock
+            .pclk1(PCLK_HZ) // DMA clock
             // PLL1
             .pll1_p_ck(PLL1_P_HZ)
             .pll1_q_ck(PLL1_Q_HZ)
@@ -105,7 +101,7 @@ impl System {
             .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &device.SYSCFG);
 
-        // print_clocks(&mut log, &ccdr);
+        print_clocks(&mut log, &ccdr);
         // TODO - Use stm32h7-fmc to setup SDRAM?
         // https://crates.io/crates/stm32h7-fmc
         // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/dev_sdram.c
@@ -115,6 +111,7 @@ impl System {
         // Configure MPU per Seed
         // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/sys_system.c
         // core.MPU.
+        // let mpu = unsafe { cortex_mpu::Mpu::new(core.MPU) };
 
         // Timers
         // TODO
@@ -169,49 +166,52 @@ impl System {
         println!(log, "Setup up SAI...");
 
         let sai1_rec = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
-        ccdr.peripheral.DMA1.enable().reset();
 
-        let buf_rx_base_addr: u32;
-        let buf_tx_base_addr: u32;
-        unsafe {
-            buf_rx_base_addr = buf_rx.as_ptr() as u32;
-            buf_tx_base_addr = buf_tx.as_ptr() as u32;
-        }
-        let mut audio = device.SAI1.i2s_ch_a(
+        let audio;
+        audio = device.SAI1.i2s_ch_a(
             pins_a,
             AUDIO_SAMPLE_HZ,
             sai::I2SBitRate::BITS_24,
             sai1_rec,
             &ccdr.clocks,
-            Some((0, buf_tx_base_addr)),
-            Some((1, buf_rx_base_addr)),
-            AUDIO_BLOCK_SIZE,
+            sai::SaiChannel::ChannelA,
+            sai::I2SMode::Master,
+            sai::I2SDir::Tx,
+            Some(sai::SaiChannel::ChannelB),
+            Some(sai::I2SMode::Slave),
+            Some(sai::I2SDir::Rx),
         );
 
-        audio.enable();
+        // ccdr.peripheral.DMA1.enable().reset();
+        // ccdr.peripheral.DMA1.enable().reset();
+        // let dma1_channels = device.DMA1.split();
+        // let mut stream0 = dma1_channels.0;
+        // let mut stream1 = dma1_channels.1;
+        // unsafe {
+        //     stream0.set_memory_address(buf_tx[..].as_ptr() as u32, true);
+        //     stream1.set_memory_address(buf_rx[..].as_ptr() as u32, true);
+        // }
 
         // Setup GPIOs
-        let gpio = crate::gpio::GPIO::init(gpioa, gpiob, gpioc, gpiod, gpiog);
+        let mut gpio = crate::gpio::GPIO::init(gpioa, gpiob, gpioc, gpiod, gpiog);
+        gpio.reset_codec();
 
         // Setup cache
         let scb = unsafe { &*stm32::SCB::ptr() };
         core.SCB.invalidate_icache();
         core.SCB.enable_icache();
-        core.SCB.clean_invalidate_dcache(&mut core.CPUID);
-        core.SCB.enable_dcache(&mut core.CPUID);
+        // core.SCB.clean_invalidate_dcache(&mut core.CPUID);
+        // core.SCB.enable_dcache(&mut core.CPUID);
 
         println!(log, "System init done!");
 
-        unsafe {
         System {
             log,
             gpio,
-            // audio,
-            EXTI: device.EXTI,
-            SYSCFG: device.SYSCFG,
-            input: & mut buf_rx,
-            output: & mut buf_tx,
-        }}
+            audio,
+            exit: device.EXTI,
+            syscfg: device.SYSCFG,
+        }
     }
 }
 
@@ -221,20 +221,20 @@ fn print_clocks(log: &mut Log, ccdr: &stm32h7xx_hal::rcc::Ccdr) {
     println!(log, "pclk2 {}", ccdr.clocks.pclk2());
     println!(log, "pclk3 {}", ccdr.clocks.pclk2());
     println!(log, "pclk4 {}", ccdr.clocks.pclk4());
-    println!(
-        log,
-        "PLL1\nP: {:?}\nQ: {:?}\nR: {:?}",
-        ccdr.clocks.pll1_p_ck(),
-        ccdr.clocks.pll1_q_ck(),
-        ccdr.clocks.pll1_r_ck()
-    );
-    println!(
-        log,
-        "PLL2\nP: {:?}\nQ: {:?}\nR: {:?}",
-        ccdr.clocks.pll2_p_ck(),
-        ccdr.clocks.pll2_q_ck(),
-        ccdr.clocks.pll2_r_ck()
-    );
+    // println!(
+    //     log,
+    //     "PLL1\nP: {:?}\nQ: {:?}\nR: {:?}",
+    //     ccdr.clocks.pll1_p_ck(),
+    //     ccdr.clocks.pll1_q_ck(),
+    //     ccdr.clocks.pll1_r_ck()
+    // );
+    // println!(
+    //     log,
+    //     "PLL2\nP: {:?}\nQ: {:?}\nR: {:?}",
+    //     ccdr.clocks.pll2_p_ck(),
+    //     ccdr.clocks.pll2_q_ck(),
+    //     ccdr.clocks.pll2_r_ck()
+    // );
     println!(
         log,
         "PLL3\nP: {:?}\nQ: {:?}\nR: {:?}",

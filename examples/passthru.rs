@@ -4,15 +4,13 @@
 
 use rtic::cyccnt::U32Ext;
 
-use panic_semihosting as _;
+// use embedded_hal::i2s::FullDuplex;
 
-use cortex_m_log::printer::Printer;
 use stm32h7xx_hal::interrupt;
 use stm32h7xx_hal::stm32;
+use stm32h7xx_hal::sai::*;
 
 use libdaisy_rust::*;
-use libdaisy_rust::system::IoBuffer;
-use libdaisy_rust::system::BUFFER_SIZE;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -23,8 +21,7 @@ const APP: () = {
     struct Resources {
         seed_led: gpio::SeedLed,
         log: Log,
-        buf_in: &'static mut IoBuffer,
-        buf_out: &'static mut IoBuffer,
+        audio: Sai<stm32::SAI1, I2S>,
     }
 
     #[init( schedule = [blink] )]
@@ -36,23 +33,25 @@ const APP: () = {
             .blink(now + (CLK_CYCLES_PER_MS * 250).cycles())
             .unwrap();
 
-        println!(
-            system.log,
-            "DMA1_STR0 Enabled: {} Pending: {}",
-            stm32::NVIC::is_enabled(interrupt::DMA1_STR0),
-            stm32::NVIC::is_pending(interrupt::DMA1_STR0),
-        );
+        system.audio.enable();
+        system.audio.try_send(0,0).unwrap();
+
+        // println!(
+        //     system.log,
+        //     "SAI1 Enabled: {} Pending: {}",
+        //     stm32::NVIC::is_enabled(interrupt::SAI1),
+        //     stm32::NVIC::is_pending(interrupt::SAI1),
+        // );
 
         init::LateResources {
             seed_led: system.gpio.led,
             log: system.log,
-            buf_in: system.input,
-            buf_out: system.output,
+            audio: system.audio,
         }
     }
 
     #[idle]
-    fn idle(ctx: idle::Context) -> ! {
+    fn idle(_ctx: idle::Context) -> ! {
         loop {}
     }
 
@@ -72,31 +71,14 @@ const APP: () = {
             .unwrap();
     }
 
-    #[task( binds = DMA1_STR0, resources = [log] )]
-    fn listener(ctx: listener::Context) {
-        static mut has_run: bool = false;
-
-        if !(*has_run) {
-            println!(ctx.resources.log, "Interrupting cow!");
-            *has_run = true;
-        }
-    }
-
-    #[task( binds = DMA1_STR1, resources =  [log, buf_in, buf_out] )]
+    #[task( binds = SAI1, resources =  [log, audio] )]
     fn listener2(ctx: listener2::Context) {
-        static mut has_run: bool = false;
-
-        if !(*has_run) {
-            println!(ctx.resources.log, "Interrupting cow2!");
-            *has_run = true;
-        }
-        for (input, output) in ctx.resources.buf_in.iter().zip(ctx.resources.buf_out.iter_mut()) {
-            *output = *input;
+        if let Ok((left, right)) = ctx.resources.audio.try_read() {
+            if let Err(_) = ctx.resources.audio.try_send(left, right) {
+                println!(ctx.resources.log, "Failed to send");
+            }
         }
     }
-
-    #[task( binds = SAI1 )]
-    fn nada(_: nada::Context) {}
 
     extern "C" {
         fn TIM4();

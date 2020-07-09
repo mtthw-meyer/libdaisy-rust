@@ -124,7 +124,7 @@ impl GPIO {
 
     pub fn reset_codec(&mut self) {
         self.codec.set_low().unwrap();
-        delay_ms(1);
+        delay_ms(5);
         self.codec.set_high().unwrap();
     }
 }

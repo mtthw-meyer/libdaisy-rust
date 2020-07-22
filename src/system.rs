@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+use rtt_target::rprintln as println;
 pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
-
 
 use cortex_m::peripheral::DWT;
 use cortex_mpu;
@@ -10,7 +10,9 @@ use cortex_mpu;
 use rtic;
 
 use stm32h7xx_hal::prelude::*;
+use stm32h7xx_hal::rcc;
 use stm32h7xx_hal::rcc::rec::ResetEnable;
+use stm32h7xx_hal::sai::*;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
 use stm32h7xx_hal::timer::{Event, Timer};
@@ -44,6 +46,9 @@ pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
 pub type IoBuffer = [u32; BUFFER_SIZE];
 
+const SLOTS: u8 = 2;
+const FIRST_BIT_OFFSET: u8 = 0;
+
 // 805306368 805306368
 
 #[link_section = ".sram1_bss"]
@@ -54,7 +59,6 @@ static mut buf_tx: IoBuffer = [0; BUFFER_SIZE];
 static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
 
 pub struct System {
-    pub log: Log,
     pub gpio: crate::gpio::GPIO,
     pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
     pub exit: stm32::EXTI,
@@ -64,21 +68,11 @@ pub struct System {
 impl System {
     pub fn init(_: rtic::Peripherals, device: stm32::Peripherals) -> System {
         // pub fn init(mut core: cortex_m::peripheral::Peripherals, device: stm32::Peripherals) -> System {
-        cfg_if::cfg_if! {
-            if #[cfg(debug_assertions)] {
-                use cortex_m_log::printer::semihosting::Semihosting;
-                use cortex_m_log::modes::InterruptFree;
-                let mut log = Semihosting::<InterruptFree, _>::stdout().unwrap();
-            }
-            else {
-                let mut log = Dummy::new();
-            }
-        }
 
-        // println!(log, "Starting system init");
+        println!("Starting system init");
         // Power
         let pwr = device.PWR.constrain();
-        let vos = pwr.freeze();
+        let vos = pwr.vos0(&device.SYSCFG).freeze();
 
         // Clocks
         let mut ccdr = device
@@ -88,6 +82,7 @@ impl System {
             .sys_ck(CLOCK_RATE_HZ)
             .pclk1(PCLK_HZ) // DMA clock
             // PLL1
+            .pll1_strategy(rcc::PllConfigStrategy::Iterative)
             .pll1_p_ck(PLL1_P_HZ)
             .pll1_q_ck(PLL1_Q_HZ)
             .pll1_r_ck(PLL1_R_HZ)
@@ -96,12 +91,34 @@ impl System {
             // .pll2_q_ck(PLL2_Q_HZ)
             // .pll2_r_ck(PLL2_R_HZ)
             // PLL3
+            .pll3_strategy(rcc::PllConfigStrategy::Iterative)
             .pll3_p_ck(PLL3_P_HZ)
             .pll3_q_ck(PLL3_Q_HZ)
             .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &device.SYSCFG);
 
-        print_clocks(&mut log, &ccdr);
+        // let pll3_ck_hz = ccdr.clocks.pll3_p_ck().unwrap();
+        // Figure 48 shows the recommended PLL initialization sequence in integer and fractional
+        // mode. The PLLx are supposed to be disabled at the start of the initialization sequence:
+        // 1. Initialize the PLLs registers according to the required frequency.
+        // – Set PLLxFRACEN of RCC PLLs Configuration Register (RCC_PLLCFGR) to ‘0’
+        // for integer mode.
+        // – For fractional mode, set FRACN to the required initial value (FracInitValue) and
+        // then set PLLxFRACEN to ‘1’.
+        // 2. Once the PLLxON bit is set to ‘1’, the user application has to wait until PLLxRDY bit is
+        // set to ‘1’. If the PLLx is in fractional mode, the PLLxFRACEN bit must not be set back
+        // to ‘0’ as long as PLLxRDY = ‘0’.
+        // 3. Once the PLLxRDY bit is set to ‘1’, the PLLx is ready to be used.
+        // 4. If the application intends to tune the PLLx frequency on-the-fly (possible only in
+        // fractional mode), then:
+        // a) PLLxFRACEN must be set to ‘0’,
+        // When PLLxFRACEN = ‘0’, the Sigma-Delta modulator is still operating with the
+        // value latched into SH_REG.
+        // b) A new value must be uploaded into PLLxFRACR (FracValue(n)).
+        // c) PLLxFRACEN must be set to ‘1’, in order to latch the content of PLLxFRACR into
+        // its shadow register.
+
+        print_clocks(&ccdr);
         // TODO - Use stm32h7-fmc to setup SDRAM?
         // https://crates.io/crates/stm32h7-fmc
         // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/dev_sdram.c
@@ -130,7 +147,7 @@ impl System {
             .timer(1.ms(), ccdr.peripheral.TIM3, &mut ccdr.clocks);
         timer3.listen(Event::TimeOut);
 
-        // println!(log, "Setting up GPIOs...");
+        // println!("Setting up GPIOs...");
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
         let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
         let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
@@ -148,7 +165,7 @@ impl System {
         );
 
         // TODO - QSPI
-        // println!(log, "Setting up QSPI...");
+        // println!("Setting up QSPI...");
         /*
             dsy_gpio_pin *pin_group;
             qspi_handle.device = DSY_QSPI_DEVICE_IS25LP064A;
@@ -163,23 +180,23 @@ impl System {
             pin_group[DSY_QSPI_PIN_NCS] =
             dsy_pin(DSY_GPIOG, 6);
         */
-        println!(log, "Setup up SAI...");
+        println!("Setup up SAI...");
 
         let sai1_rec = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        let master_config =
+            I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
+        let slave_config = I2SChanConfig::new(I2SDir::Rx)
+            .set_sync_type(I2SSync::Internal)
+            .set_frame_sync_active_high(true);
 
-        let audio;
-        audio = device.SAI1.i2s_ch_a(
+        let audio = device.SAI1.i2s_ch_a(
             pins_a,
             AUDIO_SAMPLE_HZ,
-            sai::I2SBitRate::BITS_24,
+            I2SDataSize::BITS_24,
             sai1_rec,
             &ccdr.clocks,
-            sai::SaiChannel::ChannelA,
-            sai::I2SMode::Master,
-            sai::I2SDir::Tx,
-            Some(sai::SaiChannel::ChannelB),
-            Some(sai::I2SMode::Slave),
-            Some(sai::I2SDir::Rx),
+            master_config,
+            Some(slave_config),
         );
 
         // ccdr.peripheral.DMA1.enable().reset();
@@ -197,16 +214,14 @@ impl System {
         gpio.reset_codec();
 
         // Setup cache
-        let scb = unsafe { &*stm32::SCB::ptr() };
         core.SCB.invalidate_icache();
         core.SCB.enable_icache();
         // core.SCB.clean_invalidate_dcache(&mut core.CPUID);
         // core.SCB.enable_dcache(&mut core.CPUID);
 
-        println!(log, "System init done!");
+        println!("System init done!");
 
         System {
-            log,
             gpio,
             audio,
             exit: device.EXTI,
@@ -215,12 +230,12 @@ impl System {
     }
 }
 
-fn print_clocks(log: &mut Log, ccdr: &stm32h7xx_hal::rcc::Ccdr) {
-    println!(log, "Core {}", ccdr.clocks.c_ck());
-    println!(log, "pclk1 {}", ccdr.clocks.pclk1());
-    println!(log, "pclk2 {}", ccdr.clocks.pclk2());
-    println!(log, "pclk3 {}", ccdr.clocks.pclk2());
-    println!(log, "pclk4 {}", ccdr.clocks.pclk4());
+fn print_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
+    println!("Core {}", ccdr.clocks.c_ck());
+    println!("pclk1 {}", ccdr.clocks.pclk1());
+    println!("pclk2 {}", ccdr.clocks.pclk2());
+    println!("pclk3 {}", ccdr.clocks.pclk2());
+    println!("pclk4 {}", ccdr.clocks.pclk4());
     // println!(
     //     log,
     //     "PLL1\nP: {:?}\nQ: {:?}\nR: {:?}",
@@ -236,7 +251,6 @@ fn print_clocks(log: &mut Log, ccdr: &stm32h7xx_hal::rcc::Ccdr) {
     //     ccdr.clocks.pll2_r_ck()
     // );
     println!(
-        log,
         "PLL3\nP: {:?}\nQ: {:?}\nR: {:?}",
         ccdr.clocks.pll3_p_ck(),
         ccdr.clocks.pll3_q_ck(),

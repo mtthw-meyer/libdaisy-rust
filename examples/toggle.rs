@@ -3,8 +3,10 @@
 #![no_main]
 #![no_std]
 
+use cortex_m::asm::nop;
 use rtic::cyccnt::U32Ext;
-use stm32h7xx_hal::time::Hertz;
+
+use panic_halt as _;
 
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
 
@@ -18,7 +20,6 @@ use libdaisy_rust::*;
 )]
 const APP: () = {
     struct Resources {
-        clock_rate_hertz: u32,
         seed_led: gpio::SeedLed,
         button1: gpio::Daisy28<Input<PullUp>>,
         button1_state: Debouncer<u8, Repeat4>,
@@ -29,24 +30,27 @@ const APP: () = {
         let system = system::System::init(ctx.core, ctx.device);
 
         let now = ctx.start;
-        let clock_rate_hertz: Hertz = CLOCK_RATE_MHZ.into();
-        let clock_rate_hertz = clock_rate_hertz.0;
-
         let button1 = system.gpio.daisy28.into_pull_up_input();
 
         ctx.schedule
-            .audio_callback(now + (clock_rate_hertz / 500).cycles())
+            .audio_callback(now + (MILICYCLES * 500).cycles())
             .unwrap();
 
         init::LateResources {
-            clock_rate_hertz,
             seed_led: system.gpio.led,
             button1,
             button1_state: debounce_4(),
         }
     }
 
-    #[task( schedule = [audio_callback], resources = [clock_rate_hertz, seed_led, button1, button1_state] )]
+    #[idle]
+    fn idle(_cx: idle::Context) -> ! {
+        loop {
+            nop();
+        }
+    }
+
+    #[task( schedule = [audio_callback], resources = [seed_led, button1, button1_state] )]
     fn audio_callback(ctx: audio_callback::Context) {
         static mut LED_IS_ON: bool = false;
 
@@ -67,13 +71,13 @@ const APP: () = {
         }
 
         ctx.schedule
-            .audio_callback(ctx.scheduled + (*ctx.resources.clock_rate_hertz / 500).cycles())
+            .audio_callback(ctx.scheduled + (MILICYCLES * 500).cycles())
             .unwrap();
     }
 
     // Declare unsused interrupt(s) for use by software tasks
     // https://docs.rs/stm32h7xx-hal/0.6.0/stm32h7xx_hal/enum.interrupt.html
     extern "C" {
-        fn TIM2();
+        fn TIM4();
     }
 };

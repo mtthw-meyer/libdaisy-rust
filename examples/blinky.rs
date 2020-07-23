@@ -2,9 +2,10 @@
 #![no_main]
 #![no_std]
 
+use cortex_m::asm::nop;
 use rtic::cyccnt::U32Ext;
 
-use panic_semihosting as _;
+use panic_halt as _;
 
 use libdaisy_rust::*;
 
@@ -16,25 +17,30 @@ use libdaisy_rust::*;
 const APP: () = {
     struct Resources {
         seed_led: gpio::SeedLed,
-        log: Log,
     }
 
     #[init( schedule = [blink] )]
     fn init(ctx: init::Context) -> init::LateResources {
-        let mut system = system::System::init(ctx.core, ctx.device);
+        let system = system::System::init(ctx.core, ctx.device);
 
         let now = ctx.start;
         ctx.schedule
-            .blink(now + (CLK_CYCLES_PER_MS * 250).cycles())
+            .blink(now + (MILICYCLES * 250).cycles())
             .unwrap();
 
         init::LateResources {
             seed_led: system.gpio.led,
-            log: system.log,
         }
     }
 
-    #[task( schedule = [blink], resources = [seed_led, log] )]
+    #[idle]
+    fn idle(_cx: idle::Context) -> ! {
+        loop {
+            nop();
+        }
+    }
+
+    #[task( schedule = [blink], resources = [seed_led] )]
     fn blink(ctx: blink::Context) {
         static mut LED_IS_ON: bool = true;
 
@@ -46,7 +52,7 @@ const APP: () = {
         *LED_IS_ON = !(*LED_IS_ON);
 
         ctx.schedule
-            .blink(ctx.scheduled + (CLK_CYCLES_PER_MS * 250).cycles())
+            .blink(ctx.scheduled + (MILICYCLES * 250).cycles())
             .unwrap();
     }
 

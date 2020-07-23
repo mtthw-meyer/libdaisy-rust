@@ -16,27 +16,25 @@ pub use stm32h7xx_hal::hal::digital::v2::InputPin;
 pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
 use stm32h7xx_hal::time::{Hertz, MegaHertz, U32Ext};
 
-// use cortex_m_log::printer::Dummy;
-// pub type Log = cortex_m_log::printer::dummy::Dummy;
-
-pub const MEGA: u32 = 1_000_000;
 pub const MILLI: u32 = 1_000;
-pub const AUDIO_FRAME_RATE_HZ: u32 = 1000;
+pub const AUDIO_FRAME_RATE_HZ: u32 = 1_000;
 pub const AUDIO_BLOCK_SIZE: u16 = 48;
 pub const AUDIO_SAMPLE_HZ: Hertz = Hertz(48_000);
 pub const CLOCK_RATE_HZ: Hertz = Hertz(480_000_000_u32);
 
-pub const CLK_CYCLES_PER_MS: u32 = CLOCK_RATE_HZ.0 / MILLI;
+pub const MILICYCLES: u32 = CLOCK_RATE_HZ.0 / MILLI;
 
 pub type FrameTimer = stm32h7xx_hal::timer::Timer<stm32h7xx_hal::stm32::TIM2>;
 
 pub mod gpio;
 pub mod hid;
+mod logger;
 pub mod system;
+
 
 // Delay for ms, note if interrupts are active delay time will extend
 pub fn delay_ms(ms: u32) {
-    delay_cycles(ms * CLK_CYCLES_PER_MS);
+    delay_cycles(ms * MILICYCLES);
 }
 
 // pub fn ms_to_cycles(ms: u32) {

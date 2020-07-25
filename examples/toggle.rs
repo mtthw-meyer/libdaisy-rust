@@ -6,7 +6,7 @@
 use cortex_m::asm::nop;
 use rtic::cyccnt::U32Ext;
 
-use panic_halt as _;
+use log::info;
 
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
 
@@ -33,7 +33,7 @@ const APP: () = {
         let button1 = system.gpio.daisy28.into_pull_up_input();
 
         ctx.schedule
-            .audio_callback(now + (MILICYCLES * 500).cycles())
+            .audio_callback(now + (MILICYCLES).cycles())
             .unwrap();
 
         init::LateResources {
@@ -62,6 +62,7 @@ const APP: () = {
 
         // Handle event
         if edge == Some(Edge::Falling /*Edge::Rising*/) {
+            info!("Button pressed!");
             *LED_IS_ON = !(*LED_IS_ON);
             if *LED_IS_ON {
                 ctx.resources.seed_led.set_high().unwrap();
@@ -71,7 +72,7 @@ const APP: () = {
         }
 
         ctx.schedule
-            .audio_callback(ctx.scheduled + (MILICYCLES * 500).cycles())
+            .audio_callback(ctx.scheduled + (MILICYCLES).cycles())
             .unwrap();
     }
 

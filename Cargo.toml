@@ -16,14 +16,22 @@ cortex-m-rtic = "0.5.3"
 debouncr = "0.1.2"
 log = "0.4.11"
 panic-halt = "0.2.0"
-stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"], path = "../stm32h7xx-hal-fork"}
+stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"], git = "https://github.com/mtthw-meyer/stm32h7xx-hal.git", branch = "sai-i2s-v0.2.x-1" }
 rtt-target = { version = "0.2.0", features = ["cortex-m"], optional = true }
+panic-rtt-target = { version = "0.1.0", features = ["cortex-m"], optional = true }
+lazy_static = { version = "1.4.0", features = ["spin_no_std"], optional = true  }
+cortex-m-log = { version = "~0.6", features = ["itm", "semihosting", "log-integration"], optional = true  }
+panic-itm = { version = "~0.4.1", optional = true  }
+panic-semihosting = { version = "0.5.3", optional = true  }
+cortex-m-semihosting = { version = "0.3.5", optional = true  }
 
 [features]
 
 default = []
 
-rtt = ["rtt-target"]
+log-rtt = ["rtt-target", "panic-rtt-target"]
+log-itm = ["panic-itm", "lazy_static", "cortex-m-log"]
+log-semihosting = ["panic-semihosting", "lazy_static", "cortex-m-log", "cortex-m-semihosting"]
 
 # this lets you use `cargo fix`!
 #[[bin]]

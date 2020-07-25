@@ -31,7 +31,6 @@ pub mod hid;
 mod logger;
 pub mod system;
 
-
 // Delay for ms, note if interrupts are active delay time will extend
 pub fn delay_ms(ms: u32) {
     delay_cycles(ms * MILICYCLES);

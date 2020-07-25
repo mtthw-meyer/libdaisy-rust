@@ -7,7 +7,6 @@ use cortex_m::peripheral::DWT;
 use cortex_mpu;
 
 use log::info;
-use log::{SetLoggerError, LevelFilter};
 
 use rtic;
 
@@ -20,8 +19,8 @@ use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
 use stm32h7xx_hal::timer::{Event, Timer};
 use stm32h7xx_hal::{device, dma, dma::DmaExt, gpio, interrupt, sai, stm32};
 
+use crate::logger;
 use crate::*;
-use crate::logger::Logger;
 
 const HSE_CLOCK_MHZ: MegaHertz = MegaHertz(16);
 const HCLK_MHZ: MegaHertz = MegaHertz(200);
@@ -65,8 +64,6 @@ static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
 #[no_mangle]
 static mut sdram_buf: [f32; 48] = [0.0; 48];
 
-static LOGGER: Logger = Logger{};
-
 pub struct System {
     pub gpio: crate::gpio::GPIO,
     pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
@@ -76,8 +73,7 @@ pub struct System {
 
 impl System {
     pub fn init(_: rtic::Peripherals, device: stm32::Peripherals) -> System {
-        LOGGER.init();
-        log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
+        logger::init();
 
         info!("Starting system init");
         // Power

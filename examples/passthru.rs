@@ -6,8 +6,6 @@ use cortex_m::asm::nop;
 use stm32h7xx_hal::sai::*;
 use stm32h7xx_hal::stm32;
 
-use panic_halt as _;
-
 use libdaisy_rust::*;
 
 #[rtic::app(

@@ -19,6 +19,7 @@ use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
 use stm32h7xx_hal::timer::{Event, Timer};
 use stm32h7xx_hal::{device, dma, dma::DmaExt, gpio, interrupt, sai, stm32};
 
+use crate::audio;
 use crate::logger;
 use crate::*;
 
@@ -43,8 +44,10 @@ const PLL3_P_HZ: Hertz = Hertz(AUDIO_SAMPLE_HZ.0 * 257);
 const PLL3_Q_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 4);
 const PLL3_R_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 16);
 
-const BLOCK_SIZE_MAX: usize = 48;
-pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
+// Process samples at 1000 Hz
+// With a circular buffer(*2) in stereo (*2)
+pub const BLOCK_SIZE_MAX: usize = 48;
+pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
 pub type IoBuffer = [u32; BUFFER_SIZE];
 
@@ -66,7 +69,7 @@ static mut sdram_buf: [f32; 48] = [0.0; 48];
 
 pub struct System {
     pub gpio: crate::gpio::GPIO,
-    pub audio: sai::Sai<stm32::SAI1, sai::I2S>,
+    pub audio: audio::Audio,
     pub exit: stm32::EXTI,
     pub syscfg: stm32::SYSCFG,
 }
@@ -172,7 +175,7 @@ impl System {
             .set_sync_type(I2SSync::Internal)
             .set_frame_sync_active_high(true);
 
-        let audio = device.SAI1.i2s_ch_a(
+        let dev_audio = device.SAI1.i2s_ch_a(
             pins_a,
             AUDIO_SAMPLE_HZ,
             I2SDataSize::BITS_24,
@@ -181,6 +184,10 @@ impl System {
             master_config,
             Some(slave_config),
         );
+        let audio;
+        unsafe {
+            audio = audio::Audio::new(dev_audio, &mut buf_rx, &mut buf_tx);
+        }
 
         // ccdr.peripheral.DMA1.enable().reset();
         // ccdr.peripheral.DMA1.enable().reset();

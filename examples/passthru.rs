@@ -2,10 +2,6 @@
 #![no_main]
 #![no_std]
 
-use cortex_m::asm::nop;
-use stm32h7xx_hal::sai::*;
-use stm32h7xx_hal::stm32;
-
 use libdaisy_rust::*;
 
 #[rtic::app(
@@ -15,17 +11,14 @@ use libdaisy_rust::*;
 )]
 const APP: () = {
     struct Resources {
-        audio: Sai<stm32::SAI1, I2S>,
+        audio: audio::Audio,
     }
 
     #[init( schedule = [foo] )]
     fn init(ctx: init::Context) -> init::LateResources {
         let mut system = system::System::init(ctx.core, ctx.device);
 
-        system.audio.listen(SaiChannel::ChannelB, Event::Data);
-        system.audio.enable();
-        system.audio.try_send(0, 0).unwrap();
-
+        system.audio.set_callback(passthru);
         init::LateResources {
             audio: system.audio,
         }
@@ -34,17 +27,13 @@ const APP: () = {
     #[idle]
     fn idle(_cx: idle::Context) -> ! {
         loop {
-            nop();
+            cortex_m::asm::nop();
         }
     }
 
     #[task( binds = SAI1, resources =  [audio] )]
     fn listener2(ctx: listener2::Context) {
-        if let Ok((left, right)) = ctx.resources.audio.try_read() {
-            if let Err(_) = ctx.resources.audio.try_send(left, right) {
-                // Failed to send
-            }
-        }
+        ctx.resources.audio.process();
     }
 
     #[task]
@@ -54,3 +43,10 @@ const APP: () = {
         fn TIM4();
     }
 };
+
+fn passthru(stereo: (f32, f32)) -> (f32, f32) {
+    // To breakout the channels you can use the following:
+    // let (left, right) = stereo;
+    // (left, right)
+    stereo
+}

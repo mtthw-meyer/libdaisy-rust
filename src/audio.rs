@@ -13,7 +13,7 @@ const S24_SIGN: i32 = 0x800000;
 
 use crate::system::{IoBuffer, BLOCK_SIZE_MAX};
 
-type StereoHandle = fn((f32, f32)) -> (f32, f32);
+type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct S24(pub i32);
@@ -66,7 +66,7 @@ pub struct Audio {
     pub stream: sai::Sai<stm32::SAI1, sai::I2S>,
     pub input: Input,
     pub output: Output,
-    callback: Option<StereoHandle>,
+    callback: Option<StereoIteratorHandle>,
 }
 
 impl Audio {
@@ -93,12 +93,9 @@ impl Audio {
             self.input.buffer[1] = right;
         }
 
-        if let Some(stereo_iter) = self.input.get_stereo() {
-            for stereo_in in stereo_iter {
-                if let Some(callback) = self.callback {
-                    let stereo_out = callback(stereo_in);
-                    self.output.push(stereo_out).unwrap();
-                }
+        if let Some(stereo_iter) = self.input.get_stereo_iter() {
+            if let Some(callback) = self.callback {
+                callback(stereo_iter, &mut self.output);
             }
         }
 
@@ -107,7 +104,8 @@ impl Audio {
         self.stream.try_send(left, right).unwrap();
     }
 
-    pub fn set_callback(&mut self, callback: StereoHandle) {
+    /// Sets the callback to process audio data
+    pub fn set_callback(&mut self, callback: StereoIteratorHandle) {
         self.callback = Some(callback);
     }
 
@@ -119,9 +117,9 @@ pub struct Input {
 }
 
 impl Input {
-    /// Get stereo(interleaved) iterator
-    pub fn get_stereo(&self) -> Option<Stereo> {
-        Some(Stereo::new(&self.buffer[..2]))
+    /// Get StereoIterator(interleaved) iterator
+    pub fn get_stereo_iter(&self) -> Option<StereoIterator> {
+        Some(StereoIterator::new(&self.buffer[..2]))
     }
 }
 
@@ -150,18 +148,18 @@ impl Output {
     }
 }
 
-pub struct Stereo<'a> {
+pub struct StereoIterator<'a> {
     index: usize,
     buf: &'a [u32],
 }
 
-impl<'a> Stereo<'a> {
+impl<'a> StereoIterator<'a> {
     fn new(buf: &'a [u32]) -> Self {
         Self { index: 0, buf }
     }
 }
 
-impl Iterator for Stereo<'_> {
+impl Iterator for StereoIterator<'_> {
     type Item = (f32, f32);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -199,15 +197,4 @@ impl Iterator for Mono<'_> {
             None
         }
     }
-}
-
-trait Control {
-    fn debounce();
-    fn update();
-}
-
-trait Button {
-    fn is_high();
-
-    fn is_low();
 }

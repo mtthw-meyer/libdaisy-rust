@@ -2,6 +2,7 @@
 #![no_main]
 #![no_std]
 
+use libdaisy_rust::audio;
 use libdaisy_rust::*;
 
 #[rtic::app(
@@ -32,7 +33,7 @@ const APP: () = {
     }
 
     #[task( binds = SAI1, resources =  [audio] )]
-    fn listener2(ctx: listener2::Context) {
+    fn audio_handler(ctx: audio_handler::Context) {
         ctx.resources.audio.process();
     }
 
@@ -44,9 +45,8 @@ const APP: () = {
     }
 };
 
-fn passthru(stereo: (f32, f32)) -> (f32, f32) {
-    // To breakout the channels you can use the following:
-    // let (left, right) = stereo;
-    // (left, right)
-    stereo
+fn passthru(stereo: audio::StereoIterator, output: &mut audio::Output) {
+    for (left, right) in stereo {
+        output.push((left, right)).unwrap();
+    }
 }

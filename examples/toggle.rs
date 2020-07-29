@@ -7,7 +7,9 @@ use log::info;
 
 use libdaisy_rust::gpio::*;
 use libdaisy_rust::hid;
-use libdaisy_rust::*;
+use libdaisy_rust::prelude::*;
+use libdaisy_rust::system;
+use libdaisy_rust::MILICYCLES;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -16,7 +18,7 @@ use libdaisy_rust::*;
 )]
 const APP: () = {
     struct Resources {
-        seed_led: gpio::SeedLed,
+        seed_led: SeedLed,
         switch1: hid::Switch<Daisy28<Input<PullUp>>>,
     }
 

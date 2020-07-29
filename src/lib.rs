@@ -1,20 +1,11 @@
 #![no_std]
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
 
 // #[macro_use(singleton)]
 // extern crate cortex_m;
 
-extern crate cfg_if;
-
-use rtic::cyccnt::U32Ext as rticU32Ext;
-
 use cortex_m::asm::delay as delay_cycles;
 
-pub use stm32h7xx_hal::hal::digital::v2::InputPin;
-pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
-use stm32h7xx_hal::time::{Hertz, MegaHertz, U32Ext};
+use stm32h7xx_hal::time::{Hertz, MegaHertz};
 
 pub const MILLI: u32 = 1_000;
 pub const AUDIO_FRAME_RATE_HZ: u32 = 1_000;
@@ -29,7 +20,8 @@ pub type FrameTimer = stm32h7xx_hal::timer::Timer<stm32h7xx_hal::stm32::TIM2>;
 pub mod audio;
 pub mod gpio;
 pub mod hid;
-mod logger;
+pub mod logger;
+pub mod prelude;
 pub mod system;
 
 // Delay for ms, note if interrupts are active delay time will extend

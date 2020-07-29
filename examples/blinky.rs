@@ -2,12 +2,16 @@
 #![no_main]
 #![no_std]
 
-use cortex_m::asm::nop;
 use rtic::cyccnt::U32Ext;
 
-use panic_halt as _;
+use libdaisy_rust::gpio;
+use libdaisy_rust::prelude::*;
+use libdaisy_rust::system;
+// Cycles per ms
+use libdaisy_rust::MILICYCLES;
 
-use libdaisy_rust::*;
+// Includes a panic handler and optional logging facilities
+use libdaisy_rust::logger;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -21,6 +25,7 @@ const APP: () = {
 
     #[init( schedule = [blink] )]
     fn init(ctx: init::Context) -> init::LateResources {
+        logger::init();
         let system = system::System::init(ctx.core, ctx.device);
 
         let now = ctx.start;
@@ -36,7 +41,7 @@ const APP: () = {
     #[idle]
     fn idle(_cx: idle::Context) -> ! {
         loop {
-            nop();
+            cortex_m::asm::nop();
         }
     }
 

@@ -1,10 +1,7 @@
 #![allow(dead_code)]
-#![allow(unused_variables)]
-
-pub use stm32h7xx_hal::hal::digital::v2::OutputPin;
+// #![allow(unused_variables)]
 
 use cortex_m::peripheral::DWT;
-use cortex_mpu;
 
 use log::info;
 
@@ -12,15 +9,13 @@ use rtic;
 
 use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::rcc;
-use stm32h7xx_hal::rcc::rec::ResetEnable;
 use stm32h7xx_hal::sai::*;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
-use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
-use stm32h7xx_hal::timer::{Event, Timer};
-use stm32h7xx_hal::{device, dma, dma::DmaExt, gpio, interrupt, sai, stm32};
+// use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
+use stm32h7xx_hal::timer::Event;
+use stm32h7xx_hal::{device, stm32};
 
 use crate::audio;
-use crate::logger;
 use crate::*;
 
 const HSE_CLOCK_MHZ: MegaHertz = MegaHertz(16);
@@ -76,8 +71,6 @@ pub struct System {
 
 impl System {
     pub fn init(_: rtic::Peripherals, device: stm32::Peripherals) -> System {
-        logger::init();
-
         info!("Starting system init");
         // Power
         let pwr = device.PWR.constrain();
@@ -140,7 +133,7 @@ impl System {
         let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
         let gpiod = device.GPIOD.split(ccdr.peripheral.GPIOD);
         let gpioe = device.GPIOE.split(ccdr.peripheral.GPIOE);
-        let gpiof = device.GPIOF.split(ccdr.peripheral.GPIOF);
+        let _gpiof = device.GPIOF.split(ccdr.peripheral.GPIOF);
         let gpiog = device.GPIOG.split(ccdr.peripheral.GPIOG);
 
         let pins_a = (

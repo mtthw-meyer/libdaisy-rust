@@ -1,11 +1,9 @@
-use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
-
-// use embedded_hal;
-use stm32h7xx_hal::gpio;
+//! Interface abstractions for switches, potentiometer, etc.
+#[allow(unused_imports)]
 use stm32h7xx_hal::gpio::{Analog, Input, Output, PullDown, PullUp, PushPull};
 use stm32h7xx_hal::hal::digital::v2::InputPin;
 
-const CONTROL_ARRAY_SIZE: usize = 20;
+use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
 
 // Trait for analogue state controls (e.g. potentiometer)
 pub trait AnalogueControl {

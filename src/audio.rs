@@ -1,8 +1,8 @@
-use log::info;
-use stm32h7xx_hal::sai::*;
-use stm32h7xx_hal::{sai, stm32};
+//! Audio module, handles audio startup and I/O
+//! As well as converting between the S24 input and f32 for processing
+use stm32h7xx_hal::{sai, sai::*, stm32};
 
-use core::slice;
+use crate::system::{IoBuffer, BLOCK_SIZE_MAX};
 
 // use core::marker::PhantomData;
 const FBIPMAX: f32 = 0.999985;
@@ -10,8 +10,6 @@ const FBIPMIN: f32 = -FBIPMAX;
 const F32_TO_S24_SCALE: f32 = 8388608.0; // 2 ** 23
 const S24_TO_F32_SCALE: f32 = 1.0 / F32_TO_S24_SCALE;
 const S24_SIGN: i32 = 0x800000;
-
-use crate::system::{IoBuffer, BLOCK_SIZE_MAX};
 
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
@@ -57,7 +55,6 @@ impl From<f32> for S24 {
 
 impl From<S24> for f32 {
     fn from(x: S24) -> f32 {
-        // info!("{} {} {}", x.0, S24_SIGN, x.0 ^ S24_SIGN);
         ((x.0 ^ S24_SIGN) - S24_SIGN) as f32 * S24_TO_F32_SCALE
     }
 }

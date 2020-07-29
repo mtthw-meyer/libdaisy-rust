@@ -1,16 +1,12 @@
-//! examples/button.rs
-#![deny(unsafe_code)]
+//! examples/toggle.rs
 #![no_main]
 #![no_std]
-
-use cortex_m::asm::nop;
 use rtic::cyccnt::U32Ext;
 
 use log::info;
 
-use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
-
-use libdaisy_rust::gpio::{Input, PullUp};
+use libdaisy_rust::gpio::*;
+use libdaisy_rust::hid;
 use libdaisy_rust::*;
 
 #[rtic::app(
@@ -21,47 +17,46 @@ use libdaisy_rust::*;
 const APP: () = {
     struct Resources {
         seed_led: gpio::SeedLed,
-        button1: gpio::Daisy28<Input<PullUp>>,
-        button1_state: Debouncer<u8, Repeat4>,
+        switch1: hid::Switch<Daisy28<Input<PullUp>>>,
     }
 
-    #[init(schedule = [audio_callback])]
+    #[init( schedule = [interface_handler] )]
     fn init(ctx: init::Context) -> init::LateResources {
-        let system = system::System::init(ctx.core, ctx.device);
+        let mut system = system::System::init(ctx.core, ctx.device);
+
+        let daisy28 = system
+            .gpio
+            .daisy28
+            .take()
+            .expect("Failed to get pin daisy28!")
+            .into_pull_up_input();
+
+        let switch1 = hid::Switch::new(daisy28);
 
         let now = ctx.start;
-        let button1 = system.gpio.daisy28.into_pull_up_input();
-
-        ctx.schedule
-            .audio_callback(now + (MILICYCLES).cycles())
-            .unwrap();
+        ctx.schedule.interface_handler(now).unwrap();
 
         init::LateResources {
             seed_led: system.gpio.led,
-            button1,
-            button1_state: debounce_4(),
+            switch1,
         }
     }
 
     #[idle]
-    fn idle(_cx: idle::Context) -> ! {
+    fn idle(_ctx: idle::Context) -> ! {
         loop {
-            nop();
+            cortex_m::asm::nop();
         }
     }
 
-    #[task( schedule = [audio_callback], resources = [seed_led, button1, button1_state] )]
-    fn audio_callback(ctx: audio_callback::Context) {
+    #[task( schedule = [interface_handler], resources = [seed_led, switch1] )]
+    fn interface_handler(ctx: interface_handler::Context) {
         static mut LED_IS_ON: bool = false;
 
-        // Poll button
-        let pressed: bool = ctx.resources.button1.is_low().unwrap();
+        let switch1 = ctx.resources.switch1;
+        switch1.update();
 
-        // Update state
-        let edge = ctx.resources.button1_state.update(pressed);
-
-        // Handle event
-        if edge == Some(Edge::Falling /*Edge::Rising*/) {
+        if switch1.is_falling() {
             info!("Button pressed!");
             *LED_IS_ON = !(*LED_IS_ON);
             if *LED_IS_ON {
@@ -72,12 +67,10 @@ const APP: () = {
         }
 
         ctx.schedule
-            .audio_callback(ctx.scheduled + (MILICYCLES).cycles())
+            .interface_handler(ctx.scheduled + MILICYCLES.cycles())
             .unwrap();
     }
 
-    // Declare unsused interrupt(s) for use by software tasks
-    // https://docs.rs/stm32h7xx-hal/0.6.0/stm32h7xx_hal/enum.interrupt.html
     extern "C" {
         fn TIM4();
     }

@@ -1,12 +1,16 @@
-//! examples/blinky.rs
-#![deny(unsafe_code)]
+//! examples/blinky2.rs
 #![no_main]
 #![no_std]
+use log::info;
+// Includes a panic handler and optional logging facilities
+use libdaisy_rust::logger;
 
-use rtic::cyccnt::U32Ext;
+use stm32h7xx_hal::stm32;
+use stm32h7xx_hal::timer::Timer;
 
-use libdaisy_rust::*;
-use stm32h7xx_hal::time::Hertz;
+use libdaisy_rust::gpio;
+use libdaisy_rust::prelude::*;
+use libdaisy_rust::system;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -15,33 +19,36 @@ use stm32h7xx_hal::time::Hertz;
 )]
 const APP: () = {
     struct Resources {
-        clock_rate_hertz: u32,
         seed_led: gpio::SeedLed,
+        timer2: Timer<stm32::TIM2>,
     }
 
-    #[init(schedule = [blink])]
+    #[init]
     fn init(ctx: init::Context) -> init::LateResources {
-        let system = system::System::init(ctx.core, ctx.device);
-        // semantically, the monotonic timer is frozen at time "zero" during `init`
-        // NOTE do *not* call `Instant::now` in this context; it will return a nonsense value
-        let now = ctx.start; // the start time of the system
-        let clock_rate_hertz: Hertz = CLOCK_RATE_MHZ.into();
-        let clock_rate_hertz = clock_rate_hertz.0;
+        logger::init();
+        let mut system = system::System::init(ctx.core, ctx.device);
+        info!("Startup done!");
 
-        // Schedule `blink` to run 250ms in the future
-        ctx.schedule
-            .blink(now + (clock_rate_hertz / 4).cycles())
-            .unwrap();
+        system.timer2.set_freq(500.ms());
 
         init::LateResources {
-            clock_rate_hertz,
             seed_led: system.gpio.led,
+            timer2: system.timer2,
         }
     }
 
-    #[task( schedule = [blink], resources = [clock_rate_hertz, seed_led] )]
+    #[idle]
+    fn idle(_cx: idle::Context) -> ! {
+        loop {
+            cortex_m::asm::nop();
+        }
+    }
+
+    #[task( binds = TIM2, resources = [timer2, seed_led] )]
     fn blink(ctx: blink::Context) {
-        static mut LED_IS_ON: bool = false;
+        static mut LED_IS_ON: bool = true;
+
+        ctx.resources.timer2.clear_irq();
 
         if *LED_IS_ON {
             ctx.resources.seed_led.set_high().unwrap();
@@ -49,15 +56,5 @@ const APP: () = {
             ctx.resources.seed_led.set_low().unwrap();
         }
         *LED_IS_ON = !(*LED_IS_ON);
-
-        ctx.schedule
-            .blink(ctx.scheduled + (*ctx.resources.clock_rate_hertz / 4).cycles())
-            .unwrap();
-    }
-
-    // Declare unsused interrupt(s) for use by software tasks
-    // https://docs.rs/stm32h7xx-hal/0.6.0/stm32h7xx_hal/enum.interrupt.html
-    extern "C" {
-        fn TIM2();
     }
 };

@@ -16,9 +16,22 @@ MEMORY
 */
 REGION_ALIAS(RAM, DTCMRAM);
 
-
 SECTIONS
 {
+	.sram1_bss (NOLOAD) :
+	{
+		. = ALIGN(4);
+		_ssram1_bss = .;
+
+		PROVIDE(__sram1_bss_start__ = _sram1_bss);
+		*(.sram1_bss)
+		*(.sram1_bss*)
+		. = ALIGN(4);
+		_esram1_bss = .;
+
+		PROVIDE(__sram1_bss_end__ = _esram1_bss);
+	} > RAM_D2
+
 	.sdram_bss (NOLOAD) :
 	{
 		. = ALIGN(4);
@@ -32,5 +45,6 @@ SECTIONS
 
 		PROVIDE(__sdram_bss_end = _esdram_bss);
 	} > SDRAM
+
 
 }

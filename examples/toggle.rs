@@ -1,15 +1,17 @@
-//! examples/button.rs
-#![deny(unsafe_code)]
+//! examples/toggle.rs
 #![no_main]
 #![no_std]
+use log::info;
+// Includes a panic handler and optional logging facilities
+use libdaisy_rust::logger;
 
-use rtic::cyccnt::U32Ext;
-use stm32h7xx_hal::time::Hertz;
+use stm32h7xx_hal::stm32;
+use stm32h7xx_hal::timer::Timer;
 
-use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
-
-use libdaisy_rust::gpio::{Input, PullUp};
-use libdaisy_rust::*;
+use libdaisy_rust::gpio::*;
+use libdaisy_rust::hid;
+use libdaisy_rust::prelude::*;
+use libdaisy_rust::system;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -18,62 +20,54 @@ use libdaisy_rust::*;
 )]
 const APP: () = {
     struct Resources {
-        clock_rate_hertz: u32,
-        seed_led: gpio::SeedLed,
-        button1: gpio::Daisy28<Input<PullUp>>,
-        button1_state: Debouncer<u8, Repeat4>,
+        seed_led: SeedLed,
+        switch1: hid::Switch<Daisy28<Input<PullUp>>>,
+        timer2: Timer<stm32::TIM2>,
     }
 
-    #[init(schedule = [audio_callback])]
+    #[init]
     fn init(ctx: init::Context) -> init::LateResources {
-        let system = system::System::init(ctx.core, ctx.device);
+        logger::init();
+        let mut system = system::System::init(ctx.core, ctx.device);
 
-        let now = ctx.start;
-        let clock_rate_hertz: Hertz = CLOCK_RATE_MHZ.into();
-        let clock_rate_hertz = clock_rate_hertz.0;
+        let daisy28 = system
+            .gpio
+            .daisy28
+            .take()
+            .expect("Failed to get pin daisy28!")
+            .into_pull_up_input();
 
-        let button1 = system.gpio.daisy28.into_pull_up_input();
-
-        ctx.schedule
-            .audio_callback(now + (clock_rate_hertz / 500).cycles())
-            .unwrap();
+        let switch1 = hid::Switch::new(daisy28);
 
         init::LateResources {
-            clock_rate_hertz,
             seed_led: system.gpio.led,
-            button1,
-            button1_state: debounce_4(),
+            switch1,
+            timer2: system.timer2,
         }
     }
 
-    #[task( schedule = [audio_callback], resources = [clock_rate_hertz, seed_led, button1, button1_state] )]
-    fn audio_callback(ctx: audio_callback::Context) {
+    #[idle]
+    fn idle(_ctx: idle::Context) -> ! {
+        loop {
+            cortex_m::asm::nop();
+        }
+    }
+
+    #[task( binds = TIM2, resources = [timer2, seed_led, switch1] )]
+    fn interface_handler(ctx: interface_handler::Context) {
         static mut LED_IS_ON: bool = false;
 
-        // Poll button
-        let pressed: bool = ctx.resources.button1.is_low().unwrap();
+        ctx.resources.timer2.clear_irq();
+        let switch1 = ctx.resources.switch1;
+        switch1.update();
 
-        // Update state
-        let edge = ctx.resources.button1_state.update(pressed);
-
-        // Handle event
-        if edge == Some(Edge::Falling /*Edge::Rising*/) {
-            *LED_IS_ON = !(*LED_IS_ON);
+        if switch1.is_falling() {
+            info!("Button pressed!");
             if *LED_IS_ON {
                 ctx.resources.seed_led.set_high().unwrap();
             } else {
                 ctx.resources.seed_led.set_low().unwrap();
             }
         }
-
-        ctx.schedule
-            .audio_callback(ctx.scheduled + (*ctx.resources.clock_rate_hertz / 500).cycles())
-            .unwrap();
-    }
-
-    // Declare unsused interrupt(s) for use by software tasks
-    // https://docs.rs/stm32h7xx-hal/0.6.0/stm32h7xx_hal/enum.interrupt.html
-    extern "C" {
-        fn TIM2();
     }
 };

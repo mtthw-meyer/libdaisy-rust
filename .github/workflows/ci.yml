@@ -16,8 +16,7 @@ jobs:
         rust:
           - 1.44.0  # MSRV
           - stable
-        loggers:
-          - 
+        logger:
           - log-rtt
           - log-itm
           - log-semihosting
@@ -34,4 +33,4 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --verbose --release --examples --target thumbv7em-none-eabihf --features ${{ matrix.mcu }}
+          args: --verbose --release --examples --target thumbv7em-none-eabihf --features ${{ matrix.logger }}

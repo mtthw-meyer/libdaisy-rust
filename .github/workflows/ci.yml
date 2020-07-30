@@ -24,13 +24,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
-        with:
+      with:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           target: thumbv7em-none-eabihf
           override: true
     - uses: actions-rs/cargo@v1
-        with:
+      with:
           use-cross: true
           command: build
           args: --verbose --release --examples --target thumbv7em-none-eabihf --features ${{ matrix.logger }}

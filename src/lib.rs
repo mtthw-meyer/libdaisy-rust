@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(dead_code)]
 
 // #[macro_use(singleton)]
 // extern crate cortex_m;

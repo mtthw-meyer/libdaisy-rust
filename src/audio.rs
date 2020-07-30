@@ -63,7 +63,6 @@ pub struct Audio {
     pub stream: sai::Sai<stm32::SAI1, sai::I2S>,
     pub input: Input,
     pub output: Output,
-    callback: Option<StereoIteratorHandle>,
 }
 
 impl Audio {
@@ -79,31 +78,23 @@ impl Audio {
             stream,
             input: Input { buffer: input },
             output: Output::new(output),
-            callback: None,
         }
     }
 
-    pub fn process(&mut self) {
+    pub fn read(&mut self) {
+        self.stream
+            .clear_irq(sai::SaiChannel::ChannelB, sai::Event::Data);
         self.output.reset();
         if let Ok((left, right)) = self.stream.try_read() {
             self.input.buffer[0] = left;
             self.input.buffer[1] = right;
         }
+    }
 
-        if let Some(stereo_iter) = self.input.get_stereo_iter() {
-            if let Some(callback) = self.callback {
-                callback(stereo_iter, &mut self.output);
-            }
-        }
-
+    pub fn send(&mut self) {
         let left = self.output.buffer[0];
         let right = self.output.buffer[1];
         self.stream.try_send(left, right).unwrap();
-    }
-
-    /// Sets the callback to process audio data
-    pub fn set_callback(&mut self, callback: StereoIteratorHandle) {
-        self.callback = Some(callback);
     }
 
     // pub fn get_left(&self)

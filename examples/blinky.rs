@@ -1,17 +1,16 @@
 //! examples/blinky2.rs
 #![no_main]
 #![no_std]
+use log::info;
+// Includes a panic handler and optional logging facilities
+use libdaisy_rust::logger;
 
-use rtic::cyccnt::U32Ext;
+use stm32h7xx_hal::stm32;
+use stm32h7xx_hal::timer::Timer;
 
 use libdaisy_rust::gpio;
 use libdaisy_rust::prelude::*;
 use libdaisy_rust::system;
-// Cycles per ms
-use libdaisy_rust::MILICYCLES;
-
-// Includes a panic handler and optional logging facilities
-use libdaisy_rust::logger;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -21,20 +20,20 @@ use libdaisy_rust::logger;
 const APP: () = {
     struct Resources {
         seed_led: gpio::SeedLed,
+        timer2: Timer<stm32::TIM2>,
     }
 
-    #[init( schedule = [blink] )]
+    #[init]
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
-        let system = system::System::init(ctx.core, ctx.device);
+        let mut system = system::System::init(ctx.core, ctx.device);
+        info!("Startup done!");
 
-        let now = ctx.start;
-        ctx.schedule
-            .blink(now + (MILICYCLES * 250).cycles())
-            .unwrap();
+        system.timer2.set_freq(500.ms());
 
         init::LateResources {
             seed_led: system.gpio.led,
+            timer2: system.timer2,
         }
     }
 
@@ -45,9 +44,11 @@ const APP: () = {
         }
     }
 
-    #[task( schedule = [blink], resources = [seed_led] )]
+    #[task( binds = TIM2, resources = [timer2, seed_led] )]
     fn blink(ctx: blink::Context) {
         static mut LED_IS_ON: bool = true;
+
+        ctx.resources.timer2.clear_irq();
 
         if *LED_IS_ON {
             ctx.resources.seed_led.set_high().unwrap();
@@ -55,13 +56,5 @@ const APP: () = {
             ctx.resources.seed_led.set_low().unwrap();
         }
         *LED_IS_ON = !(*LED_IS_ON);
-
-        ctx.schedule
-            .blink(ctx.scheduled + (MILICYCLES * 250).cycles())
-            .unwrap();
-    }
-
-    extern "C" {
-        fn TIM4();
     }
 };

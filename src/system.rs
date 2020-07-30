@@ -2,18 +2,18 @@
 // #![allow(unused_variables)]
 
 use cortex_m::peripheral::DWT;
-
 use log::info;
 
-use rtic;
-
+use stm32h7xx_hal::adc;
+use stm32h7xx_hal::delay::Delay;
 use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::rcc;
 use stm32h7xx_hal::sai::*;
+use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
-// use stm32h7xx_hal::stm32::{TIM1, TIM12, TIM17, TIM2};
+use stm32h7xx_hal::stm32::TIM2;
 use stm32h7xx_hal::timer::Event;
-use stm32h7xx_hal::{device, stm32};
+use stm32h7xx_hal::timer::Timer;
 
 use crate::audio;
 use crate::*;
@@ -30,7 +30,7 @@ const PLL1_P_HZ: Hertz = CLOCK_RATE_HZ;
 const PLL1_Q_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 18);
 const PLL1_R_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 32);
 // PLL2
-const PLL2_P_HZ: Hertz = Hertz(3_125_000);
+const PLL2_P_HZ: Hertz = Hertz(4_000_000);
 const PLL2_Q_HZ: Hertz = Hertz(PLL2_P_HZ.0 / 2); // No divder given, what's the default?
 const PLL2_R_HZ: Hertz = Hertz(PLL2_P_HZ.0 / 4); // No divder given, what's the default?
                                                  // PLL3
@@ -67,10 +67,14 @@ pub struct System {
     pub audio: audio::Audio,
     pub exit: stm32::EXTI,
     pub syscfg: stm32::SYSCFG,
+    pub adc1: adc::Adc<stm32::ADC1, adc::Disabled>,
+    pub adc2: adc::Adc<stm32::ADC2, adc::Disabled>,
+    pub timer2: Timer<TIM2>,
 }
 
 impl System {
-    pub fn init(_: rtic::Peripherals, device: stm32::Peripherals) -> System {
+    pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
+        // let mut core = device::CorePeripherals::take().unwrap();
         info!("Starting system init");
         // Power
         let pwr = device.PWR.constrain();
@@ -89,7 +93,7 @@ impl System {
             .pll1_q_ck(PLL1_Q_HZ)
             .pll1_r_ck(PLL1_R_HZ)
             // PLL2
-            // .pll2_p_ck(PLL2_P_HZ)
+            .pll2_p_ck(PLL2_P_HZ) // Default adc_ker_ck_input
             // .pll2_q_ck(PLL2_Q_HZ)
             // .pll2_r_ck(PLL2_R_HZ)
             // PLL3
@@ -99,11 +103,22 @@ impl System {
             .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &device.SYSCFG);
 
+        // log_clocks(&ccdr);
+
+        let mut delay = Delay::new(core.SYST, ccdr.clocks);
+        // Setup ADCs
+        let (adc1, adc2) = adc::adc12(
+            device.ADC1,
+            device.ADC2,
+            &mut delay,
+            ccdr.peripheral.ADC12,
+            &ccdr.clocks,
+        );
+
         // TODO - Use stm32h7-fmc to setup SDRAM?
         // https://crates.io/crates/stm32h7-fmc
         // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/dev_sdram.c
 
-        let mut core = device::CorePeripherals::take().unwrap();
         // MPU
         // Configure MPU per Seed
         // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/sys_system.c
@@ -119,13 +134,13 @@ impl System {
 
         let mut timer2 = device
             .TIM2
-            .timer(1000.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
+            .timer(100.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
         timer2.listen(Event::TimeOut);
 
-        let mut timer3 = device
-            .TIM3
-            .timer(1.ms(), ccdr.peripheral.TIM3, &mut ccdr.clocks);
-        timer3.listen(Event::TimeOut);
+        // let mut timer3 = device
+        //     .TIM3
+        //     .timer(1.ms(), ccdr.peripheral.TIM3, &mut ccdr.clocks);
+        // timer3.listen(Event::TimeOut);
 
         // info!("Setting up GPIOs...");
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
@@ -209,11 +224,14 @@ impl System {
             audio,
             exit: device.EXTI,
             syscfg: device.SYSCFG,
+            adc1,
+            adc2,
+            timer2,
         }
     }
 }
 
-fn print_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
+fn log_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
     info!("Core {}", ccdr.clocks.c_ck());
     info!("pclk1 {}", ccdr.clocks.pclk1());
     info!("pclk2 {}", ccdr.clocks.pclk2());

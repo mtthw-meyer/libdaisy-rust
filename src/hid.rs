@@ -5,11 +5,13 @@ use stm32h7xx_hal::hal::digital::v2::InputPin;
 
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
 
-// Trait for analogue state controls (e.g. potentiometer)
-pub trait AnalogueControl {
-    fn update(&mut self);
-    fn value(&self);
-}
+pub type TransformFn = fn(f32) -> f32;
+// Trait for Analog state controls (e.g. potentiometer)
+// pub trait AnalogControl {
+//     fn update(&mut self);
+//     fn set_transform(&mut self, transform: Option<TransformFn>);
+//     fn get_value(&self) -> f32;
+// }
 
 /// Trait for binary state controls (e.g. a switch)
 pub trait SwitchControl {
@@ -69,5 +71,50 @@ where
 
     pub fn is_falling(&self) -> bool {
         self.falling
+    }
+}
+
+const ANALOG_ARR_SIZE: usize = 4;
+const ANALOG_ARR_SIZE_F32: f32 = ANALOG_ARR_SIZE as f32;
+
+pub struct AnalogControl<T> {
+    state: [f32; ANALOG_ARR_SIZE],
+    scale: f32,
+    transform: Option<TransformFn>,
+    pub pin: T,
+    index: usize,
+}
+
+impl<T> AnalogControl<T> {
+    pub fn new(pin: T, scale: f32) -> Self {
+        Self {
+            state: [0.0; ANALOG_ARR_SIZE],
+            scale,
+            transform: None,
+            pin,
+            index: 0,
+        }
+    }
+
+    pub fn set_scale(&mut self, scale: f32) {
+        self.scale = scale;
+    }
+
+    pub fn set_transform(&mut self, transform: TransformFn) {
+        self.transform = Some(transform);
+    }
+
+    pub fn update(&mut self, value: u32) {
+        self.state[self.index] = value as f32 / self.scale;
+        self.index = (self.index + 1) % ANALOG_ARR_SIZE;
+    }
+
+    pub fn get_value(&self) -> f32 {
+        let mut value = self.state.iter().sum();
+        value = value / ANALOG_ARR_SIZE_F32;
+        if let Some(tfn) = self.transform {
+            value = tfn(value);
+        }
+        value
     }
 }

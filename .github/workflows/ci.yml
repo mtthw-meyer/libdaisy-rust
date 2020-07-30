@@ -1,0 +1,36 @@
+name: Continuous integration
+
+on:
+  push:
+    branches: [ staging, trying, master ]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy: 
+      matrix:                   # All permutations of {rust, mcu}
+        rust:
+          - 1.44.0  # MSRV
+          - stable
+        logger:
+          - log-rtt
+          - log-itm
+          - log-semihosting
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: thumbv7em-none-eabihf
+          override: true
+    - uses: actions-rs/cargo@v1
+      with:
+          use-cross: true
+          command: build
+          args: --verbose --release --examples --target thumbv7em-none-eabihf --features ${{ matrix.logger }}

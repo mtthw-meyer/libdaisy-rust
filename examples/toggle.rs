@@ -57,12 +57,11 @@ const APP: () = {
         let edge = ctx.resources.button1_state.update(pressed);
 
         // Handle event
-        if edge == Some(Edge::Falling/*Edge::Rising*/) {
+        if edge == Some(Edge::Falling /*Edge::Rising*/) {
             *LED_IS_ON = !(*LED_IS_ON);
             if *LED_IS_ON {
                 ctx.resources.seed_led.set_high().unwrap();
-            }
-            else {
+            } else {
                 ctx.resources.seed_led.set_low().unwrap();
             }
         }

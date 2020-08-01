@@ -12,6 +12,7 @@ use libdaisy_rust::gpio::*;
 use libdaisy_rust::hid;
 use libdaisy_rust::prelude::*;
 use libdaisy_rust::system;
+use stm32h7xx_hal::time::Hertz;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -36,6 +37,8 @@ const APP: () = {
             .take()
             .expect("Failed to get pin daisy28!")
             .into_pull_up_input();
+
+        system.timer2.set_freq(Hertz(100));
 
         let switch1 = hid::Switch::new(daisy28);
 
@@ -64,10 +67,11 @@ const APP: () = {
         if switch1.is_falling() {
             info!("Button pressed!");
             if *LED_IS_ON {
-                ctx.resources.seed_led.set_high().unwrap();
-            } else {
                 ctx.resources.seed_led.set_low().unwrap();
+            } else {
+                ctx.resources.seed_led.set_high().unwrap();
             }
+            *LED_IS_ON = !(*LED_IS_ON);
         }
     }
 };

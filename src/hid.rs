@@ -1,9 +1,10 @@
 //! Interface abstractions for switches, potentiometer, etc.
 #[allow(unused_imports)]
 use stm32h7xx_hal::gpio::{Analog, Input, Output, PullDown, PullUp, PushPull};
-use stm32h7xx_hal::hal::digital::v2::InputPin;
+use stm32h7xx_hal::hal::digital::v2::{InputPin, OutputPin};
 
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
+use micromath::F32Ext;
 
 pub type TransformFn = fn(f32) -> f32;
 // Trait for Analog state controls (e.g. potentiometer)
@@ -116,5 +117,63 @@ impl<T> AnalogControl<T> {
             value = tfn(value);
         }
         value
+    }
+}
+
+pub struct Led<T> {
+    pin: T,
+    /// inverts the brightness level
+    invert: bool,
+    /// resolution is the number of brightness levels
+    resolution: u32,
+    brightness: f32,
+    pwm: f32,
+}
+
+impl<T> Led<T>
+where
+    T: OutputPin,
+{
+    pub fn new(pin: T, invert: bool, resolution: u32) -> Self {
+        Self {
+            pin,
+            invert,
+            resolution,
+            brightness: 0.0,
+            pwm: 0.0,
+        }
+    }
+
+    pub fn set_brightness(&mut self, value: f32) {
+        // TODO clamp to [0.0,1.0] ?
+        match self.invert {
+            // Bias for slower transitions in the low brightness range
+            // TODO configurable?
+            true => self.brightness = value.sqrt(),
+            false => self.brightness = value * value,
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.pwm += 1.0 / self.resolution as f32;
+        if self.pwm > 1.0 {
+            self.pwm -= 1.0;
+        }
+
+        if self.brightness > self.pwm {
+            match self.invert {
+                true => self.pin.set_low(),
+                false => self.pin.set_high(),
+            }
+            .ok()
+            .unwrap();
+        } else {
+            match self.invert {
+                true => self.pin.set_high(),
+                false => self.pin.set_low(),
+            }
+            .ok()
+            .unwrap();
+        }
     }
 }

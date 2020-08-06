@@ -16,6 +16,7 @@ cortex-m-rt = "0.6.12"
 cortex-m-rtic = "0.5.3"
 debouncr = "0.1.2"
 log = "0.4.11"
+micromath = "1.0.1"
 panic-halt = "0.2.0"
 stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"], git = "https://github.com/mtthw-meyer/stm32h7xx-hal.git", branch = "sai-i2s-v0.2.x-1" }
 rtt-target = { version = "0.2.0", features = ["cortex-m"], optional = true }

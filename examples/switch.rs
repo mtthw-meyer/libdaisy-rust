@@ -40,7 +40,9 @@ const APP: () = {
 
         system.timer2.set_freq(Hertz(100));
 
-        let switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
+        let mut switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
+        switch1.set_double_thresh(Some(500.ms()));
+        switch1.set_held_thresh(Some(1500.ms()));
 
         init::LateResources {
             seed_led: system.gpio.led,
@@ -64,14 +66,20 @@ const APP: () = {
         let switch1 = ctx.resources.switch1;
         switch1.update();
 
-        if switch1.is_falling() {
-            info!("Button pressed!");
-            if *LED_IS_ON {
-                ctx.resources.seed_led.set_low().unwrap();
-            } else {
-                ctx.resources.seed_led.set_high().unwrap();
-            }
+        if switch1.is_held() {
+            info!("Button held!");
             *LED_IS_ON = !(*LED_IS_ON);
+        }
+
+        if switch1.is_double() {
+            info!("Button pressed twice!");
+            *LED_IS_ON = !(*LED_IS_ON);
+        }
+
+        if *LED_IS_ON {
+            ctx.resources.seed_led.set_low().unwrap();
+        } else {
+            ctx.resources.seed_led.set_high().unwrap();
         }
     }
 };

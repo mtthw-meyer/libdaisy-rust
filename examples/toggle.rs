@@ -67,9 +67,9 @@ const APP: () = {
         if switch1.is_falling() {
             info!("Button pressed!");
             if *LED_IS_ON {
-                ctx.resources.seed_led.set_low().unwrap();
-            } else {
                 ctx.resources.seed_led.set_high().unwrap();
+            } else {
+                ctx.resources.seed_led.set_low().unwrap();
             }
             *LED_IS_ON = !(*LED_IS_ON);
         }

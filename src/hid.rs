@@ -3,11 +3,6 @@
 use stm32h7xx_hal::gpio::{Analog, Input, Output, PullDown, PullUp, PushPull};
 use stm32h7xx_hal::hal::digital::v2::InputPin;
 
-use stm32h7xx_hal::pac;
-use stm32h7xx_hal::time::MilliSeconds as MS;
-
-use crate::MILICYCLES;
-
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
 
 pub type TransformFn = fn(f32) -> f32;
@@ -23,11 +18,11 @@ pub struct Switch<T> {
     falling: bool,
     rising: bool,
     switch_type: SwitchType,
-    double_threshold: Option<MS>,
-    held_threshold: Option<MS>,
+    double_threshold: Option<u32>,
+    held_threshold: Option<u32>,
     was_pressed: bool,
-    start: u32,
-    last_press: u32,
+    held_counter: u32,
+    last_press_counter: u32,
     single_press: bool,
     double_press: bool,
 }
@@ -47,30 +42,24 @@ where
             double_threshold: None,
             held_threshold: None,
             was_pressed: false,
-            start: 0,
-            last_press: 0,
+            held_counter: 0,
+            last_press_counter: 0,
             single_press: false,
             double_press: false,
         }
     }
 
-    pub fn set_held_thresh<S>(&mut self, held_threshold: Option<S>)
-    where
-        S: Into<MS>,
-    {
+    pub fn set_held_thresh(&mut self, held_threshold: Option<u32>) {
         self.held_threshold = if let Some(held_threshold) = held_threshold {
-            Some(held_threshold.into())
+            Some(held_threshold)
         } else {
             None
         };
     }
 
-    pub fn set_double_thresh<S>(&mut self, double_threshold: Option<S>)
-    where
-        S: Into<MS>,
-    {
+    pub fn set_double_thresh(&mut self, double_threshold: Option<u32>) {
         self.double_threshold = if let Some(double_threshold) = double_threshold {
-            Some(double_threshold.into())
+            Some(double_threshold)
         } else {
             None
         };
@@ -90,28 +79,36 @@ where
             self.rising = false;
         }
 
-        if is_pressed {
-            if !self.was_pressed {
-                self.start = pac::DWT::get_cycle_count();
-                self.was_pressed = true;
-            }
-        }
-        // Handle edge on release
-        else if self.was_pressed {
-            if let Some(double_threshold) = self.double_threshold {
-                let now = pac::DWT::get_cycle_count();
-
-                // If it's a double press set it to true
-                if self.single_press && (now - self.last_press) / MILICYCLES < double_threshold.0 {
-                    self.double_press = true;
+        // Handle double press logic
+        if let Some(double_threshold) = self.double_threshold {
+            // If we exceed the threshold for a double press reset it
+            // Otherwise the counter will eventually wrap around and panic
+            if self.single_press {
+                self.last_press_counter += 1;
+                if self.last_press_counter > double_threshold {
                     self.single_press = false;
-                // Else set the last press to now
-                } else {
-                    self.last_press = now;
-                    self.single_press = true;
                 }
             }
-            self.was_pressed = false;
+
+            if self.falling {
+                if self.single_press && self.last_press_counter < double_threshold {
+                    self.double_press = true;
+                    self.single_press = false;
+                } else {
+                    self.single_press = true;
+                    self.last_press_counter = 0;
+                }
+            } else {
+                self.double_press = false;
+            }
+        }
+
+        // Handle held counter
+        if is_pressed {
+            self.held_counter += 1;
+        }
+        if self.rising {
+            self.held_counter = 0;
         }
     }
 
@@ -140,9 +137,7 @@ where
 
     pub fn is_held(&self) -> bool {
         if let Some(held_threshold) = self.held_threshold {
-            if self.is_pressed() {
-                return (pac::DWT::get_cycle_count() - self.start) / MILICYCLES > held_threshold.0;
-            }
+            return self.falling && self.held_counter >= held_threshold;
         }
         false
     }

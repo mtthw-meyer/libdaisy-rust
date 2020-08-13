@@ -184,7 +184,7 @@ impl<T> AnalogControl<T> {
 
     pub fn get_value(&self) -> f32 {
         let mut value = self.state.iter().sum();
-        value = value / ANALOG_ARR_SIZE_F32;
+        value /= ANALOG_ARR_SIZE_F32;
         if let Some(tfn) = self.transform {
             value = tfn(value);
         }

@@ -12,7 +12,6 @@ use libdaisy_rust::gpio::*;
 use libdaisy_rust::hid;
 use libdaisy_rust::prelude::*;
 use libdaisy_rust::system;
-use stm32h7xx_hal::time::Hertz;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -38,9 +37,12 @@ const APP: () = {
             .expect("Failed to get pin daisy28!")
             .into_pull_up_input();
 
-        system.timer2.set_freq(Hertz(100));
+        system.timer2.set_freq(1.ms());
 
-        let switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
+        // Switch rate is determined by timer freq
+        let mut switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
+        switch1.set_double_thresh(Some(500));
+        switch1.set_held_thresh(Some(1500));
 
         init::LateResources {
             seed_led: system.gpio.led,
@@ -64,14 +66,20 @@ const APP: () = {
         let switch1 = ctx.resources.switch1;
         switch1.update();
 
-        if switch1.is_falling() {
-            info!("Button pressed!");
-            if *LED_IS_ON {
-                ctx.resources.seed_led.set_high().unwrap();
-            } else {
-                ctx.resources.seed_led.set_low().unwrap();
-            }
-            *LED_IS_ON = !(*LED_IS_ON);
+        if switch1.is_held() {
+            info!("Button held!");
+            *LED_IS_ON = false;
+        }
+
+        if switch1.is_double() {
+            info!("Button pressed twice!");
+            *LED_IS_ON = true;
+        }
+
+        if *LED_IS_ON {
+            ctx.resources.seed_led.set_high().unwrap();
+        } else {
+            ctx.resources.seed_led.set_low().unwrap();
         }
     }
 };

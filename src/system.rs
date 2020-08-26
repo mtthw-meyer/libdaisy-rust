@@ -208,7 +208,41 @@ impl System {
         // }
 
         // Setup GPIOs
-        let mut gpio = crate::gpio::GPIO::init(gpioa, gpiob, gpioc, gpiod, gpiog);
+        let mut gpio = crate::gpio::GPIO::init(
+            gpioc.pc7,
+            gpiob.pb11,
+            Some(gpiob.pb12),
+            Some(gpioc.pc11),
+            Some(gpioc.pc10),
+            Some(gpioc.pc9),
+            Some(gpioc.pc8),
+            Some(gpiod.pd2),
+            Some(gpioc.pc12),
+            Some(gpiog.pg10),
+            Some(gpiog.pg11),
+            Some(gpiob.pb4),
+            Some(gpiob.pb5),
+            Some(gpiob.pb8),
+            Some(gpiob.pb9),
+            Some(gpiob.pb6),
+            Some(gpiob.pb7),
+            Some(gpioc.pc0),
+            Some(gpioa.pa3),
+            Some(gpiob.pb1),
+            Some(gpioa.pa7),
+            Some(gpioa.pa6),
+            Some(gpioc.pc1),
+            Some(gpioc.pc4),
+            Some(gpioa.pa5),
+            Some(gpioa.pa4),
+            Some(gpioa.pa1),
+            Some(gpioa.pa0),
+            Some(gpiod.pd11),
+            Some(gpiog.pg9),
+            Some(gpioa.pa2),
+            Some(gpiob.pb14),
+            Some(gpiob.pb15),
+        );
         gpio.reset_codec();
 
         // Setup cache

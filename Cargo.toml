@@ -15,6 +15,7 @@ cortex-mpu = "0.4.0"
 cortex-m-rt = "0.6.12"
 cortex-m-rtic = "0.5.3"
 debouncr = "0.1.2"
+stm32h7-fmc = { git = "https://github.com/glindstedt/stm32h7-fmc.git", branch = "as4c16m32msa", features = ["stm32h750v"]}
 log = "0.4.11"
 micromath = "1.0.1"
 panic-halt = "0.2.0"

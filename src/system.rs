@@ -17,6 +17,8 @@ use stm32h7xx_hal::stm32::TIM2;
 use stm32h7xx_hal::timer::Event;
 use stm32h7xx_hal::timer::Timer;
 
+use stm32_fmc::devices::as4c16m32msa_6;
+
 use crate::audio;
 use crate::*;
 
@@ -167,7 +169,7 @@ impl System {
         let gpioi = device.GPIOI.split(ccdr.peripheral.GPIOI);
 
         // Configure SDRAM
-        let fmc_io = stm32h7_fmc::PinsSdramBank1(fmc_pins! {
+        let fmc_io = fmc_pins! {
             // A0-A12
             gpiof.pf0, gpiof.pf1, gpiof.pf2, gpiof.pf3,
             gpiof.pf4, gpiof.pf5, gpiof.pf12, gpiof.pf13,
@@ -192,23 +194,23 @@ impl System {
             gpioh.ph3,   // SDNE0
             gpiof.pf11,  // SDRAS
             gpioh.ph5    // SDNWE
-        });
-        let mut sdram = stm32h7_fmc::Sdram::new(
-            device.FMC,
-            ccdr.peripheral.FMC,
+        };
+        let mut sdram = device.FMC.sdram(
             fmc_io,
-            stm32h7_fmc::as4c16m32msa_6::As4c16m32msa {},
+            as4c16m32msa_6::As4c16m32msa {},
+            ccdr.peripheral.FMC,
+            &ccdr.clocks,
         );
 
         let ram = unsafe {
-            let ram_ptr: *mut u32 = sdram.init(&mut delay, ccdr.clocks);
+            let ram_ptr: *mut u32 = sdram.init(&mut delay);
             info!("SDRAM ptr: {:?}", ram_ptr);
-            let ram_size_bytes = 64 * 1024 * 1024;
-            mpu_sdram_init(&mut core.MPU, &mut core.SCB, ram_ptr, ram_size_bytes);
+            let sdram_size_bytes: usize = 64 * 1024 * 1024;
+            mpu_sdram_init(&mut core.MPU, &mut core.SCB, ram_ptr, sdram_size_bytes);
 
             info!("Initialised MPU...");
 
-            slice::from_raw_parts_mut(ram_ptr, ram_size_bytes / mem::size_of::<u32>())
+            slice::from_raw_parts_mut(ram_ptr, sdram_size_bytes / mem::size_of::<u32>())
         };
 
         let pins_a = (

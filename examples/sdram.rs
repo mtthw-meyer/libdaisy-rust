@@ -32,20 +32,39 @@ const APP: () = {
 
         let sdram = system.sdram;
 
-        let len = 8;
-        for a in 0..len {
-            info!("{}", sdram[a]);
+        let sdram_size_bytes = 64 * 1024 * 1024;
+        let sdram_size = sdram_size_bytes / core::mem::size_of::<u32>();
+
+        info!(
+            "SDRAM size: {} bytes, {} words",
+            sdram_size_bytes, sdram_size
+        );
+
+        // Make sure that we're not reading memory from a previous test run
+        info!("Clear memory...");
+        for a in 0..sdram_size {
+            sdram[a] = 0;
         }
 
-        for a in 0..len {
-            sdram[a] = 2u32.pow(a as u32);
+        info!("Write test pattern...");
+        let mut data: u32 = 0;
+        for a in 0..sdram_size {
+            sdram[a] = data;
+            data = (data + 1) % core::u32::MAX;
         }
 
-        cortex_m::asm::dsb();
-        for a in 0..len {
-            info!("{}", sdram[a]);
-            assert_eq!(2u32.pow(a as u32), sdram[a]);
+        info!("Read test pattern...");
+        let percent = (sdram_size as f64 / 100.0) as usize;
+        data = 0;
+        for a in 0..sdram_size {
+            assert_eq!(sdram[a], data);
+            data = (data + 1) % core::u32::MAX;
+
+            if (a % (10 * percent)) == 0 {
+                info!("{}% done", a / percent);
+            }
         }
+        info!("Test Success!");
 
         init::LateResources {
             seed_led: system.gpio.led,

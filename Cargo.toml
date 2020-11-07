@@ -19,7 +19,7 @@ stm32h7-fmc = { git = "https://github.com/glindstedt/stm32h7-fmc.git", branch = 
 log = "0.4.11"
 micromath = "1.0.1"
 panic-halt = "0.2.0"
-stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"], git = "https://github.com/mtthw-meyer/stm32h7xx-hal.git", branch = "sai-i2s-v0.2.x-1" }
+stm32h7xx-hal = { version = "0.8.0", features = ["stm32h750v", "rt", "fmc"] }
 rtt-target = { version = "0.2.0", features = ["cortex-m"], optional = true }
 panic-rtt-target = { version = "0.1.0", features = ["cortex-m"], optional = true }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"], optional = true  }

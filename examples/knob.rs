@@ -1,6 +1,8 @@
 //! examples/knob.rs
 #![no_main]
 #![no_std]
+// Includes a panic handler and optional logging facilities
+use libdaisy_rust::logger;
 
 use stm32h7xx_hal::adc;
 use stm32h7xx_hal::stm32;
@@ -27,6 +29,7 @@ const APP: () = {
 
     #[init]
     fn init(ctx: init::Context) -> init::LateResources {
+        logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
 
         let duty_cycle = 50;

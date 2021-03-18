@@ -1,5 +1,6 @@
 //! Audio module, handles audio startup and I/O
 //! As well as converting between the S24 input and f32 for processing
+use stm32h7xx_hal::traits::i2s::FullDuplex;
 use stm32h7xx_hal::{sai, sai::*, stm32};
 
 use crate::system::{IoBuffer, BLOCK_SIZE_MAX};

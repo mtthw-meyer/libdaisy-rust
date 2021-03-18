@@ -18,14 +18,14 @@ debouncr = "0.1.2"
 log = "0.4.11"
 micromath = "1.0.1"
 panic-halt = "0.2.0"
-stm32h7xx-hal = { version = "0.6.0", features = ["stm32h750v","rt"], git = "https://github.com/mtthw-meyer/stm32h7xx-hal.git", branch = "sai-i2s-v0.2.x-1" }
-rtt-target = { version = "0.2.0", features = ["cortex-m"], optional = true }
-panic-rtt-target = { version = "0.1.0", features = ["cortex-m"], optional = true }
+stm32h7xx-hal = { version = "0.9.0", features = ["stm32h750v","rt"] }
+rtt-target = { version = "0.3.0", features = ["cortex-m"], optional = true }
+panic-rtt-target = { version = "0.1.1", features = ["cortex-m"], optional = true }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"], optional = true  }
-cortex-m-log = { version = "~0.6", features = ["itm", "semihosting", "log-integration"], optional = true  }
-panic-itm = { version = "~0.4.1", optional = true  }
-panic-semihosting = { version = "0.5.3", optional = true  }
-cortex-m-semihosting = { version = "0.3.5", optional = true  }
+cortex-m-log = { version = "~0.7", features = ["itm", "semihosting", "log-integration"], optional = true  }
+panic-itm = { version = "~0.4.2", optional = true  }
+panic-semihosting = { version = "0.5.6", optional = true  }
+cortex-m-semihosting = { version = "0.3.7", optional = true  }
 
 
 [features]

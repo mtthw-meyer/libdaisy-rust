@@ -66,7 +66,7 @@ macro_rules! fmc_pins {
 pub struct System {
     pub gpio: crate::gpio::GPIO,
     pub audio: Audio,
-    pub exit: stm32::EXTI,
+    pub exti: stm32::EXTI,
     pub syscfg: stm32::SYSCFG,
     pub adc1: adc::Adc<stm32::ADC1, adc::Disabled>,
     pub adc2: adc::Adc<stm32::ADC2, adc::Disabled>,
@@ -215,7 +215,6 @@ impl System {
 
     ///Batteries included initializion
     pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
-        // let mut core = device::CorePeripherals::take().unwrap();
         info!("Starting system init");
         let mut ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
 
@@ -422,7 +421,7 @@ impl System {
         System {
             gpio,
             audio,
-            exit: device.EXTI,
+            exti: device.EXTI,
             syscfg: device.SYSCFG,
             adc1,
             adc2,

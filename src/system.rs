@@ -8,11 +8,9 @@ use core::{mem, slice};
 
 use stm32h7xx_hal::adc;
 use stm32h7xx_hal::delay::Delay;
-use stm32h7xx_hal::gpio::{gpioa, gpiob, gpioc, gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog};
+use stm32h7xx_hal::gpio::{gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog};
 use stm32h7xx_hal::prelude::*;
-use stm32h7xx_hal::sai::*;
 use stm32h7xx_hal::stm32;
-use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::stm32::TIM2;
 use stm32h7xx_hal::timer::Event;
 use stm32h7xx_hal::timer::Timer;
@@ -20,7 +18,7 @@ use stm32h7xx_hal::{pwr::PowerConfiguration, rcc};
 
 use stm32_fmc::devices::as4c16m32msa_6;
 
-use crate::audio;
+use crate::audio::Audio;
 use crate::*;
 
 const HSE_CLOCK_MHZ: MegaHertz = MegaHertz(16);
@@ -44,24 +42,8 @@ const PLL3_P_HZ: Hertz = Hertz(AUDIO_SAMPLE_HZ.0 * 257);
 const PLL3_Q_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 4);
 const PLL3_R_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 16);
 
-// Process samples at 1000 Hz
-// With a circular buffer(*2) in stereo (*2)
-pub const BLOCK_SIZE_MAX: usize = 48;
-pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
-
-pub type IoBuffer = [u32; BUFFER_SIZE];
-
 const SLOTS: u8 = 2;
 const FIRST_BIT_OFFSET: u8 = 0;
-
-// 805306368 805306368
-
-#[link_section = ".sram1_bss"]
-#[no_mangle]
-static mut buf_tx: IoBuffer = [0; BUFFER_SIZE];
-#[link_section = ".sram1_bss"]
-#[no_mangle]
-static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
 
 // #[link_section = ".sdram_bss"]
 // #[no_mangle]
@@ -83,7 +65,7 @@ macro_rules! fmc_pins {
 
 pub struct System {
     pub gpio: crate::gpio::GPIO,
-    pub audio: audio::Audio,
+    pub audio: Audio,
     pub exit: stm32::EXTI,
     pub syscfg: stm32::SYSCFG,
     pub adc1: adc::Adc<stm32::ADC1, adc::Disabled>,
@@ -210,7 +192,7 @@ impl System {
         fmc_d.sdram(sdram_pins, as4c16m32msa_6::As4c16m32msa {}, fmc_p, clocks)
     }
 
-    ///Batteries include initializion
+    ///Batteries included initializion
     pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
         // let mut core = device::CorePeripherals::take().unwrap();
         info!("Starting system init");
@@ -356,33 +338,16 @@ impl System {
         */
         info!("Setup up SAI...");
 
-        let sai1_rec = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
-        let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
-        let slave_config = I2SChanConfig::new(I2SDir::Rx)
-            .set_sync_type(I2SSync::Internal)
-            .set_frame_sync_active_high(true);
-
-        let pins_a = (
-            gpioe.pe2.into_alternate_af6(),       // MCLK_A
-            gpioe.pe5.into_alternate_af6(),       // SCK_A
-            gpioe.pe4.into_alternate_af6(),       // FS_A
-            gpioe.pe6.into_alternate_af6(),       // SD_A
-            Some(gpioe.pe3.into_alternate_af6()), // SD_B
-        );
-
-        let dev_audio = device.SAI1.i2s_ch_a(
-            pins_a,
-            AUDIO_SAMPLE_HZ,
-            I2SDataSize::BITS_24,
-            sai1_rec,
+        let audio = Audio::init(
+            ccdr.peripheral.SAI1,
+            device.SAI1,
             &ccdr.clocks,
-            master_config,
-            Some(slave_config),
+            gpioe.pe2,
+            gpioe.pe3,
+            gpioe.pe4,
+            gpioe.pe5,
+            gpioe.pe6,
         );
-        let audio;
-        unsafe {
-            audio = audio::Audio::new(dev_audio, &mut buf_rx, &mut buf_tx);
-        }
 
         // ccdr.peripheral.DMA1.enable().reset();
         // ccdr.peripheral.DMA1.enable().reset();

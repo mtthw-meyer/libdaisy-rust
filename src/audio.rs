@@ -1,9 +1,10 @@
 //! Audio module, handles audio startup and I/O
 //! As well as converting between the S24 input and f32 for processing
+use stm32h7xx_hal::gpio::{gpioe, Analog};
+use stm32h7xx_hal::rcc;
+use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::traits::i2s::FullDuplex;
 use stm32h7xx_hal::{sai, sai::*, stm32};
-
-use crate::system::{IoBuffer, BLOCK_SIZE_MAX};
 
 // use core::marker::PhantomData;
 const FBIPMAX: f32 = 0.999985;
@@ -11,6 +12,22 @@ const FBIPMIN: f32 = -FBIPMAX;
 const F32_TO_S24_SCALE: f32 = 8388608.0; // 2 ** 23
 const S24_TO_F32_SCALE: f32 = 1.0 / F32_TO_S24_SCALE;
 const S24_SIGN: i32 = 0x800000;
+
+// Process samples at 1000 Hz
+// With a circular buffer(*2) in stereo (*2)
+pub const BLOCK_SIZE_MAX: usize = 48;
+pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
+
+pub type IoBuffer = [u32; BUFFER_SIZE];
+
+// 805306368 805306368
+
+#[link_section = ".sram1_bss"]
+#[no_mangle]
+static mut buf_tx: IoBuffer = [0; BUFFER_SIZE];
+#[link_section = ".sram1_bss"]
+#[no_mangle]
+static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
 
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
@@ -67,6 +84,41 @@ pub struct Audio {
 }
 
 impl Audio {
+    pub fn init(
+        sai1: rcc::rec::Sai1,
+        sai1_d: stm32::SAI1,
+        clocks: &rcc::CoreClocks,
+        ee2: gpioe::PE2<Analog>,
+        ee3: gpioe::PE3<Analog>,
+        ee4: gpioe::PE4<Analog>,
+        ee5: gpioe::PE5<Analog>,
+        ee6: gpioe::PE6<Analog>,
+    ) -> Self {
+        let sai1_rec = sai1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
+        let slave_config = I2SChanConfig::new(I2SDir::Rx)
+            .set_sync_type(I2SSync::Internal)
+            .set_frame_sync_active_high(true);
+
+        let pins_a = (
+            ee2.into_alternate_af6(),       // MCLK_A
+            ee5.into_alternate_af6(),       // SCK_A
+            ee4.into_alternate_af6(),       // FS_A
+            ee6.into_alternate_af6(),       // SD_A
+            Some(ee3.into_alternate_af6()), // SD_B
+        );
+
+        let dev_audio = sai1_d.i2s_ch_a(
+            pins_a,
+            crate::AUDIO_SAMPLE_HZ,
+            I2SDataSize::BITS_24,
+            sai1_rec,
+            &clocks,
+            master_config,
+            Some(slave_config),
+        );
+        unsafe { Self::new(dev_audio, &mut buf_rx, &mut buf_tx) }
+    }
     pub fn new(
         mut stream: sai::Sai<stm32::SAI1, sai::I2S>,
         input: &'static mut IoBuffer,

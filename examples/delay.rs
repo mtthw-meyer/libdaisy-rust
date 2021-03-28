@@ -52,12 +52,12 @@ const APP: () = {
 
         if let Some(stereo_iter) = audio.input.get_stereo_iter() {
             for (left, right) in stereo_iter {
-                audio.output.push((
-                    sdram[*index],
-                    sdram[*index+1]
-                )).unwrap();
-                sdram[*index]    = left;
-                sdram[*index+1]  = right;
+                audio
+                    .output
+                    .push((sdram[*index], sdram[*index + 1]))
+                    .unwrap();
+                sdram[*index] = left;
+                sdram[*index + 1] = right;
                 *index = (*index + 2) % 48_000;
             }
         }

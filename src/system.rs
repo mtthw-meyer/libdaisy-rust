@@ -214,7 +214,10 @@ impl System {
 
             info!("Initialised MPU...");
 
-            slice::from_raw_parts_mut(ram_ptr as *mut f32, sdram_size_bytes / mem::size_of::<u32>())
+            slice::from_raw_parts_mut(
+                ram_ptr as *mut f32,
+                sdram_size_bytes / mem::size_of::<u32>(),
+            )
         };
 
         // TODO - QSPI
@@ -351,7 +354,6 @@ fn log_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
     );
 }
 
-
 // MPU
 // Configure MPU per Seed
 // https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/sys_system.c
@@ -369,7 +371,12 @@ fn log_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
 ///
 /// Function will panic if `size` is not a power of 2. Function
 /// will panic if `size` is not at least 32 bytes.
-fn mpu_sdram_init(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripheral::SCB, location: *mut u32, size: usize) {
+fn mpu_sdram_init(
+    mpu: &mut cortex_m::peripheral::MPU,
+    scb: &mut cortex_m::peripheral::SCB,
+    location: *mut u32,
+    size: usize,
+) {
     /// Refer to ARM®v7-M Architecture Reference Manual ARM DDI 0403
     /// Version E.b Section B3.5
     const MEMFAULTENA: u32 = 1 << 16;

@@ -1,20 +1,19 @@
 #![allow(dead_code)]
 // #![allow(unused_variables)]
 
-use cortex_m::peripheral::DWT;
 use log::info;
 
 use core::{mem, slice};
-
-use stm32h7xx_hal::adc;
-use stm32h7xx_hal::delay::Delay;
-use stm32h7xx_hal::gpio::{gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog};
-use stm32h7xx_hal::prelude::*;
-use stm32h7xx_hal::rcc;
-use stm32h7xx_hal::stm32;
-use stm32h7xx_hal::stm32::TIM2;
-use stm32h7xx_hal::timer::Event;
-use stm32h7xx_hal::timer::Timer;
+use stm32h7xx_hal::{
+    adc,
+    delay::Delay,
+    gpio::{gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog},
+    prelude::*,
+    rcc, stm32,
+    stm32::TIM2,
+    timer::Event,
+    timer::Timer,
+};
 
 use stm32_fmc::devices::as4c16m32msa_6;
 
@@ -100,6 +99,7 @@ impl System {
             .freeze(vos, &syscfg)
     }
 
+    /// Set SDRAM
     pub fn init_sdram(
         fmc_d: stm32::FMC,
         fmc_p: rcc::rec::Fmc,
@@ -192,14 +192,15 @@ impl System {
         fmc_d.sdram(sdram_pins, as4c16m32msa_6::As4c16m32msa {}, fmc_p, clocks)
     }
 
+    /// Setup cache
     pub fn init_cache(scb: &mut cortex_m::peripheral::SCB) {
-        // Setup cache
         scb.invalidate_icache();
         scb.enable_icache();
         // core.SCB.clean_invalidate_dcache(&mut core.CPUID);
         // core.SCB.enable_dcache(&mut core.CPUID);
     }
 
+    /// Set ADCs
     pub fn init_adc(
         adc1: stm32::ADC1,
         adc2: stm32::ADC2,
@@ -213,14 +214,21 @@ impl System {
         adc::adc12(adc1, adc2, delay, adc12, clocks)
     }
 
+    /// Enable debug
+    pub fn init_debug(dcb: &mut cortex_m::peripheral::DCB, dwt: &mut cortex_m::peripheral::DWT) {
+        dcb.enable_trace();
+        cortex_m::peripheral::DWT::unlock();
+        dwt.enable_cycle_counter();
+    }
+
     ///Batteries included initializion
     pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
         info!("Starting system init");
         let mut ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
 
         // log_clocks(&ccdr);
-
         let mut delay = Delay::new(core.SYST, ccdr.clocks);
+
         // Setup ADCs
         let (adc1, adc2) = Self::init_adc(
             device.ADC1,
@@ -230,13 +238,9 @@ impl System {
             &ccdr.clocks,
         );
 
-        // Timers
-        // TODO
-        // ?
-        core.DCB.enable_trace();
-        DWT::unlock();
-        core.DWT.enable_cycle_counter();
+        Self::init_debug(&mut core.DCB, &mut core.DWT);
 
+        //Timers
         let mut timer2 = device
             .TIM2
             .timer(100.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
@@ -247,7 +251,6 @@ impl System {
         //     .timer(1.ms(), ccdr.peripheral.TIM3, &mut ccdr.clocks);
         // timer3.listen(Event::TimeOut);
 
-        // info!("Setting up GPIOs...");
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
         let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
         let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
@@ -353,8 +356,8 @@ impl System {
             pin_group[DSY_QSPI_PIN_NCS] =
             dsy_pin(DSY_GPIOG, 6);
         */
-        info!("Setup up SAI...");
 
+        info!("Setup up SAI...");
         let audio = Audio::init(
             ccdr.peripheral.SAI1,
             device.SAI1,
@@ -376,7 +379,7 @@ impl System {
         //     stream1.set_memory_address(buf_rx[..].as_ptr() as u32, true);
         // }
 
-        // Setup GPIOs
+        info!("Setting up GPIOs...");
         let gpio = crate::gpio::GPIO::init(
             gpioc.pc7,
             gpiob.pb11,
@@ -417,7 +420,6 @@ impl System {
         Self::init_cache(&mut core.SCB);
 
         info!("System init done!");
-
         System {
             gpio,
             audio,
@@ -475,7 +477,7 @@ fn log_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
 ///
 /// Function will panic if `size` is not a power of 2. Function
 /// will panic if `size` is not at least 32 bytes.
-fn mpu_sdram_init(
+pub fn mpu_sdram_init(
     mpu: &mut cortex_m::peripheral::MPU,
     scb: &mut cortex_m::peripheral::SCB,
     location: *mut u32,

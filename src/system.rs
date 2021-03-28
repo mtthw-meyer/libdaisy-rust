@@ -9,13 +9,13 @@ use core::{mem, slice};
 use stm32h7xx_hal::adc;
 use stm32h7xx_hal::delay::Delay;
 use stm32h7xx_hal::prelude::*;
-use stm32h7xx_hal::rcc;
 use stm32h7xx_hal::sai::*;
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::stm32::TIM2;
 use stm32h7xx_hal::timer::Event;
 use stm32h7xx_hal::timer::Timer;
+use stm32h7xx_hal::{pwr::PowerConfiguration, rcc};
 
 use stm32_fmc::devices::as4c16m32msa_6;
 
@@ -92,18 +92,12 @@ pub struct System {
 }
 
 impl System {
-    pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
-        // let mut core = device::CorePeripherals::take().unwrap();
-        info!("Starting system init");
-        // Power
-        let pwr = device.PWR.constrain();
-        let vos = pwr.vos0(&device.SYSCFG).freeze();
-
-        // Clocks
-        let mut ccdr = device
-            .RCC
-            .constrain()
-            .use_hse(HSE_CLOCK_MHZ)
+    pub fn init_clocks(
+        rcc: rcc::Rcc,
+        vos: PowerConfiguration,
+        syscfg: &stm32::SYSCFG,
+    ) -> rcc::Ccdr {
+        rcc.use_hse(HSE_CLOCK_MHZ)
             .sys_ck(CLOCK_RATE_HZ)
             .pclk1(PCLK_HZ) // DMA clock
             // PLL1
@@ -120,7 +114,15 @@ impl System {
             .pll3_p_ck(PLL3_P_HZ)
             .pll3_q_ck(PLL3_Q_HZ)
             .pll3_r_ck(PLL3_R_HZ)
-            .freeze(vos, &device.SYSCFG);
+            .freeze(vos, &syscfg)
+    }
+    pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
+        // let mut core = device::CorePeripherals::take().unwrap();
+        info!("Starting system init");
+        // Power
+        let pwr = device.PWR.constrain();
+        let vos = pwr.vos0(&device.SYSCFG).freeze();
+        let mut ccdr = Self::init_clocks(device.RCC.constrain(), vos, &device.SYSCFG);
 
         // log_clocks(&ccdr);
 

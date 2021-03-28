@@ -23,6 +23,7 @@ pub mod gpio;
 pub mod hid;
 pub mod logger;
 pub mod prelude;
+pub mod sdram;
 pub mod system;
 
 // Delay for ms, note if interrupts are active delay time will extend

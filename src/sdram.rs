@@ -124,8 +124,14 @@ impl Sdram {
         Self { inner: ram_ptr }
     }
 
+    /// Get the total number of bytes that this ram has.
     pub const fn bytes() -> usize {
         64 * 1024 * 1024
+    }
+
+    /// Get a pointer to the first word of the ram.
+    pub fn inner(&self) -> *mut u32 {
+        self.inner
     }
 }
 

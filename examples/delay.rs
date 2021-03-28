@@ -1,4 +1,4 @@
-//! examples/passthru.rs
+//! examples/delay.rs
 #![no_main]
 #![no_std]
 use log::info;
@@ -15,6 +15,9 @@ use libdaisy_rust::system;
 const APP: () = {
     struct Resources {
         audio: audio::Audio,
+        sdram: &'static mut [f32],
+        #[init(0)]
+        index: usize,
     }
 
     #[init]
@@ -26,6 +29,7 @@ const APP: () = {
 
         init::LateResources {
             audio: system.audio,
+            sdram: system.sdram,
         }
     }
 
@@ -39,14 +43,22 @@ const APP: () = {
     }
 
     // Interrupt handler for audio, should not generally need to be modified
-    #[task( binds = SAI1, resources = [audio], priority = 8 )]
+    #[task( binds = SAI1, resources = [audio, sdram, index], priority = 8 )]
     fn audio_handler(ctx: audio_handler::Context) {
         let audio = ctx.resources.audio;
+        let sdram: &mut [f32] = ctx.resources.sdram;
+        let index: &mut usize = ctx.resources.index;
         audio.read();
 
         if let Some(stereo_iter) = audio.input.get_stereo_iter() {
             for (left, right) in stereo_iter {
-                audio.output.push((left, right)).unwrap();
+                audio
+                    .output
+                    .push((sdram[*index], sdram[*index + 1]))
+                    .unwrap();
+                sdram[*index] = left;
+                sdram[*index + 1] = right;
+                *index = (*index + 2) % 48_000;
             }
         }
 

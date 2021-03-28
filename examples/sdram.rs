@@ -12,6 +12,8 @@ use libdaisy_rust::gpio::*;
 use libdaisy_rust::prelude::*;
 use libdaisy_rust::system;
 
+use micromath::F32Ext;
+
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
     peripherals = true,
@@ -43,25 +45,25 @@ const APP: () = {
         // Make sure that we're not reading memory from a previous test run
         info!("Clear memory...");
         for a in 0..sdram_size {
-            sdram[a] = 0;
+            sdram[a] = 0.0;
         }
 
         info!("Write test pattern...");
-        let mut data: u32 = 0;
+        let mut data: f32 = 0.0;
         for a in 0..sdram_size {
             sdram[a] = data;
-            data = (data + 1) % core::u32::MAX;
+            data = (data + 1.0) % core::f32::MAX;
         }
 
         info!("Read test pattern...");
-        let percent = (sdram_size as f64 / 100.0) as usize;
-        data = 0;
+        let percent = (sdram_size as f64 / 100.0) as f32;
+        data = 0.0;
         for a in 0..sdram_size {
-            assert_eq!(sdram[a], data);
-            data = (data + 1) % core::u32::MAX;
+            assert!((sdram[a] - data).abs() < f32::EPSILON);
+            data = (data + 1.0) % core::f32::MAX;
 
-            if (a % (10 * percent)) == 0 {
-                info!("{}% done", a / percent);
+            if (a as f32 % (10.0 * percent)) == 0.0 {
+                info!("{}% done", a as f32 / percent);
             }
         }
         info!("Test Success!");

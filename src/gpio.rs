@@ -116,7 +116,7 @@ impl GPIO {
     ) -> GPIO {
         let led = seed_led.into_push_pull_output();
         let codec = codec.into_push_pull_output();
-        GPIO {
+        let mut gpio = Self {
             led,
             codec,
             daisy0,
@@ -150,7 +150,9 @@ impl GPIO {
             daisy28,
             daisy29,
             daisy30,
-        }
+        };
+        gpio.reset_codec();
+        gpio
     }
 
     pub fn reset_codec(&mut self) {

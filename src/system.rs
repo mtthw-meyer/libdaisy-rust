@@ -10,11 +10,11 @@ use stm32h7xx_hal::adc;
 use stm32h7xx_hal::delay::Delay;
 use stm32h7xx_hal::gpio::{gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog};
 use stm32h7xx_hal::prelude::*;
+use stm32h7xx_hal::rcc;
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::stm32::TIM2;
 use stm32h7xx_hal::timer::Event;
 use stm32h7xx_hal::timer::Timer;
-use stm32h7xx_hal::{pwr::PowerConfiguration, rcc};
 
 use stm32_fmc::devices::as4c16m32msa_6;
 
@@ -75,12 +75,12 @@ pub struct System {
 }
 
 impl System {
-    pub fn init_clocks(
-        rcc: rcc::Rcc,
-        vos: PowerConfiguration,
-        syscfg: &stm32::SYSCFG,
-    ) -> rcc::Ccdr {
-        rcc.use_hse(HSE_CLOCK_MHZ)
+    pub fn init_clocks(pwr: stm32::PWR, rcc: stm32::RCC, syscfg: &stm32::SYSCFG) -> rcc::Ccdr {
+        // Power
+        let pwr = pwr.constrain();
+        let vos = pwr.vos0(syscfg).freeze();
+        rcc.constrain()
+            .use_hse(HSE_CLOCK_MHZ)
             .sys_ck(CLOCK_RATE_HZ)
             .pclk1(PCLK_HZ) // DMA clock
             // PLL1
@@ -192,24 +192,42 @@ impl System {
         fmc_d.sdram(sdram_pins, as4c16m32msa_6::As4c16m32msa {}, fmc_p, clocks)
     }
 
+    pub fn init_cache(scb: &mut cortex_m::peripheral::SCB) {
+        // Setup cache
+        scb.invalidate_icache();
+        scb.enable_icache();
+        // core.SCB.clean_invalidate_dcache(&mut core.CPUID);
+        // core.SCB.enable_dcache(&mut core.CPUID);
+    }
+
+    pub fn init_adc(
+        adc1: stm32::ADC1,
+        adc2: stm32::ADC2,
+        adc12: rcc::rec::Adc12,
+        delay: &mut Delay,
+        clocks: &rcc::CoreClocks,
+    ) -> (
+        adc::Adc<stm32::ADC1, adc::Disabled>,
+        adc::Adc<stm32::ADC2, adc::Disabled>,
+    ) {
+        adc::adc12(adc1, adc2, delay, adc12, clocks)
+    }
+
     ///Batteries included initializion
     pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
         // let mut core = device::CorePeripherals::take().unwrap();
         info!("Starting system init");
-        // Power
-        let pwr = device.PWR.constrain();
-        let vos = pwr.vos0(&device.SYSCFG).freeze();
-        let mut ccdr = Self::init_clocks(device.RCC.constrain(), vos, &device.SYSCFG);
+        let mut ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
 
         // log_clocks(&ccdr);
 
         let mut delay = Delay::new(core.SYST, ccdr.clocks);
         // Setup ADCs
-        let (adc1, adc2) = adc::adc12(
+        let (adc1, adc2) = Self::init_adc(
             device.ADC1,
             device.ADC2,
-            &mut delay,
             ccdr.peripheral.ADC12,
+            &mut delay,
             &ccdr.clocks,
         );
 
@@ -360,7 +378,7 @@ impl System {
         // }
 
         // Setup GPIOs
-        let mut gpio = crate::gpio::GPIO::init(
+        let gpio = crate::gpio::GPIO::init(
             gpioc.pc7,
             gpiob.pb11,
             Some(gpiob.pb12),
@@ -395,13 +413,9 @@ impl System {
             Some(gpiob.pb14),
             Some(gpiob.pb15),
         );
-        gpio.reset_codec();
 
         // Setup cache
-        core.SCB.invalidate_icache();
-        core.SCB.enable_icache();
-        // core.SCB.clean_invalidate_dcache(&mut core.CPUID);
-        // core.SCB.enable_dcache(&mut core.CPUID);
+        Self::init_cache(&mut core.SCB);
 
         info!("System init done!");
 

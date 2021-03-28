@@ -36,8 +36,8 @@ const APP: () = {
         let sdram_size = sdram_size_bytes / core::mem::size_of::<u32>();
 
         info!(
-            "SDRAM size: {} bytes, {} words",
-            sdram_size_bytes, sdram_size
+            "SDRAM size: {} bytes, {} words starting at {:?}",
+            sdram_size_bytes, sdram_size, &sdram[0] as *const _
         );
 
         // Make sure that we're not reading memory from a previous test run

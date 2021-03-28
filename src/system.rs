@@ -88,7 +88,7 @@ pub struct System {
     pub adc1: adc::Adc<stm32::ADC1, adc::Disabled>,
     pub adc2: adc::Adc<stm32::ADC2, adc::Disabled>,
     pub timer2: Timer<TIM2>,
-    pub sdram: &'static mut [u32],
+    pub sdram: &'static mut [f32],
 }
 
 impl System {
@@ -206,7 +206,7 @@ impl System {
             &ccdr.clocks,
         );
 
-        let ram = unsafe {
+        let ram: &mut [f32] = unsafe {
             let ram_ptr: *mut u32 = sdram.init(&mut delay);
             info!("SDRAM ptr: {:?}", ram_ptr);
             let sdram_size_bytes: usize = 64 * 1024 * 1024;
@@ -214,7 +214,7 @@ impl System {
 
             info!("Initialised MPU...");
 
-            slice::from_raw_parts_mut(ram_ptr, sdram_size_bytes / mem::size_of::<u32>())
+            slice::from_raw_parts_mut(ram_ptr as *mut f32, sdram_size_bytes / mem::size_of::<u32>())
         };
 
         // TODO - QSPI

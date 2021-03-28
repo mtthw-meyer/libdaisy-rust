@@ -8,6 +8,7 @@ use core::{mem, slice};
 
 use stm32h7xx_hal::adc;
 use stm32h7xx_hal::delay::Delay;
+use stm32h7xx_hal::gpio::{gpioa, gpiob, gpioc, gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog};
 use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::sai::*;
 use stm32h7xx_hal::stm32;
@@ -116,6 +117,101 @@ impl System {
             .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &syscfg)
     }
+
+    pub fn init_sdram(
+        fmc_d: stm32::FMC,
+        fmc_p: rcc::rec::Fmc,
+        clocks: &rcc::CoreClocks,
+        ff0: gpiof::PF0<Analog>,
+        ff1: gpiof::PF1<Analog>,
+        ff2: gpiof::PF2<Analog>,
+        ff3: gpiof::PF3<Analog>,
+        ff4: gpiof::PF4<Analog>,
+        ff5: gpiof::PF5<Analog>,
+        ff12: gpiof::PF12<Analog>,
+        ff13: gpiof::PF13<Analog>,
+        ff14: gpiof::PF14<Analog>,
+        ff15: gpiof::PF15<Analog>,
+        gg0: gpiog::PG0<Analog>,
+        gg1: gpiog::PG1<Analog>,
+        gg2: gpiog::PG2<Analog>,
+        // BA0-BA1
+        gg4: gpiog::PG4<Analog>,
+        gg5: gpiog::PG5<Analog>, // D0-D31
+        dd14: gpiod::PD14<Analog>,
+        dd15: gpiod::PD15<Analog>,
+        dd0: gpiod::PD0<Analog>,
+        dd1: gpiod::PD1<Analog>,
+        ee7: gpioe::PE7<Analog>,
+        ee8: gpioe::PE8<Analog>,
+        ee9: gpioe::PE9<Analog>,
+        ee10: gpioe::PE10<Analog>,
+        ee11: gpioe::PE11<Analog>,
+        ee12: gpioe::PE12<Analog>,
+        ee13: gpioe::PE13<Analog>,
+        ee14: gpioe::PE14<Analog>,
+        ee15: gpioe::PE15<Analog>,
+        dd8: gpiod::PD8<Analog>,
+        dd9: gpiod::PD9<Analog>,
+        dd10: gpiod::PD10<Analog>,
+        hh8: gpioh::PH8<Analog>,
+        hh9: gpioh::PH9<Analog>,
+        hh10: gpioh::PH10<Analog>,
+        hh11: gpioh::PH11<Analog>,
+        hh12: gpioh::PH12<Analog>,
+        hh13: gpioh::PH13<Analog>,
+        hh14: gpioh::PH14<Analog>,
+        hh15: gpioh::PH15<Analog>,
+        ii0: gpioi::PI0<Analog>,
+        ii1: gpioi::PI1<Analog>,
+        ii2: gpioi::PI2<Analog>,
+        ii3: gpioi::PI3<Analog>,
+        ii6: gpioi::PI6<Analog>,
+        ii7: gpioi::PI7<Analog>,
+        ii9: gpioi::PI9<Analog>,
+        ii10: gpioi::PI10<Analog>, // NBL0 - NBL3
+        ee0: gpioe::PE0<Analog>,
+        ee1: gpioe::PE1<Analog>,
+        ii4: gpioi::PI4<Analog>,
+        ii5: gpioi::PI5<Analog>,
+        hh2: gpioh::PH2<Analog>,   // SDCKE0
+        gg8: gpiog::PG8<Analog>,   // SDCLK
+        gg15: gpiog::PG15<Analog>, // SDNCAS
+        hh3: gpioh::PH3<Analog>,   // SDNE0
+        ff11: gpiof::PF11<Analog>, // SDRAS
+        hh5: gpioh::PH5<Analog>,   // SDNWE
+    ) -> stm32_fmc::Sdram<stm32h7xx_hal::fmc::FMC, as4c16m32msa_6::As4c16m32msa> {
+        let sdram_pins = fmc_pins! {
+            // A0-A12
+            ff0, ff1, ff2, ff3,
+            ff4, ff5, ff12, ff13,
+            ff14, ff15, gg0, gg1,
+            gg2,
+            // BA0-BA1
+            gg4, gg5,
+            // D0-D31
+            dd14, dd15, dd0, dd1,
+            ee7, ee8, ee9, ee10,
+            ee11, ee12, ee13, ee14,
+            ee15, dd8, dd9, dd10,
+            hh8, hh9, hh10, hh11,
+            hh12, hh13, hh14, hh15,
+            ii0, ii1, ii2, ii3,
+            ii6, ii7, ii9, ii10,
+            // NBL0 - NBL3
+            ee0, ee1, ii4, ii5,
+            hh2,   // SDCKE0
+            gg8,   // SDCLK
+            gg15,  // SDNCAS
+            hh3,   // SDNE0
+            ff11,  // SDRAS
+            hh5    // SDNWE
+        };
+
+        fmc_d.sdram(sdram_pins, as4c16m32msa_6::As4c16m32msa {}, fmc_p, clocks)
+    }
+
+    ///Batteries include initializion
     pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
         // let mut core = device::CorePeripherals::take().unwrap();
         info!("Starting system init");
@@ -164,48 +260,70 @@ impl System {
         let gpioh = device.GPIOH.split(ccdr.peripheral.GPIOH);
         let gpioi = device.GPIOI.split(ccdr.peripheral.GPIOI);
 
-        let pins_a = (
-            gpioe.pe2.into_alternate_af6(),       // MCLK_A
-            gpioe.pe5.into_alternate_af6(),       // SCK_A
-            gpioe.pe4.into_alternate_af6(),       // FS_A
-            gpioe.pe6.into_alternate_af6(),       // SD_A
-            Some(gpioe.pe3.into_alternate_af6()), // SD_B
-        );
-
         // Configure SDRAM
         info!("Setting up SDRAM...");
-        let sdram_pins = fmc_pins! {
-            // A0-A12
-            gpiof.pf0, gpiof.pf1, gpiof.pf2, gpiof.pf3,
-            gpiof.pf4, gpiof.pf5, gpiof.pf12, gpiof.pf13,
-            gpiof.pf14, gpiof.pf15, gpiog.pg0, gpiog.pg1,
-            gpiog.pg2,
-            // BA0-BA1
-            gpiog.pg4, gpiog.pg5,
-            // D0-D31
-            gpiod.pd14, gpiod.pd15, gpiod.pd0, gpiod.pd1,
-            gpioe.pe7, gpioe.pe8, gpioe.pe9, gpioe.pe10,
-            gpioe.pe11, gpioe.pe12, gpioe.pe13, gpioe.pe14,
-            gpioe.pe15, gpiod.pd8, gpiod.pd9, gpiod.pd10,
-            gpioh.ph8, gpioh.ph9, gpioh.ph10, gpioh.ph11,
-            gpioh.ph12, gpioh.ph13, gpioh.ph14, gpioh.ph15,
-            gpioi.pi0, gpioi.pi1, gpioi.pi2, gpioi.pi3,
-            gpioi.pi6, gpioi.pi7, gpioi.pi9, gpioi.pi10,
-            // NBL0 - NBL3
-            gpioe.pe0, gpioe.pe1, gpioi.pi4, gpioi.pi5,
-            gpioh.ph2,   // SDCKE0
-            gpiog.pg8,   // SDCLK
-            gpiog.pg15,  // SDNCAS
-            gpioh.ph3,   // SDNE0
-            gpiof.pf11,  // SDRAS
-            gpioh.ph5    // SDNWE
-        };
-
-        let mut sdram = device.FMC.sdram(
-            sdram_pins,
-            as4c16m32msa_6::As4c16m32msa {},
+        let mut sdram = Self::init_sdram(
+            device.FMC,
             ccdr.peripheral.FMC,
             &ccdr.clocks,
+            gpiof.pf0,
+            gpiof.pf1,
+            gpiof.pf2,
+            gpiof.pf3,
+            gpiof.pf4,
+            gpiof.pf5,
+            gpiof.pf12,
+            gpiof.pf13,
+            gpiof.pf14,
+            gpiof.pf15,
+            gpiog.pg0,
+            gpiog.pg1,
+            gpiog.pg2,
+            // BA0-BA1
+            gpiog.pg4,
+            gpiog.pg5, // D0-D31
+            gpiod.pd14,
+            gpiod.pd15,
+            gpiod.pd0,
+            gpiod.pd1,
+            gpioe.pe7,
+            gpioe.pe8,
+            gpioe.pe9,
+            gpioe.pe10,
+            gpioe.pe11,
+            gpioe.pe12,
+            gpioe.pe13,
+            gpioe.pe14,
+            gpioe.pe15,
+            gpiod.pd8,
+            gpiod.pd9,
+            gpiod.pd10,
+            gpioh.ph8,
+            gpioh.ph9,
+            gpioh.ph10,
+            gpioh.ph11,
+            gpioh.ph12,
+            gpioh.ph13,
+            gpioh.ph14,
+            gpioh.ph15,
+            gpioi.pi0,
+            gpioi.pi1,
+            gpioi.pi2,
+            gpioi.pi3,
+            gpioi.pi6,
+            gpioi.pi7,
+            gpioi.pi9,
+            gpioi.pi10, // NBL0 - NBL3
+            gpioe.pe0,
+            gpioe.pe1,
+            gpioi.pi4,
+            gpioi.pi5,
+            gpioh.ph2,  // SDCKE0
+            gpiog.pg8,  // SDCLK
+            gpiog.pg15, // SDNCAS
+            gpioh.ph3,  // SDNE0
+            gpiof.pf11, // SDRAS
+            gpioh.ph5,  // SDNWE
         );
 
         let ram: &mut [f32] = unsafe {
@@ -245,6 +363,14 @@ impl System {
         let slave_config = I2SChanConfig::new(I2SDir::Rx)
             .set_sync_type(I2SSync::Internal)
             .set_frame_sync_active_high(true);
+
+        let pins_a = (
+            gpioe.pe2.into_alternate_af6(),       // MCLK_A
+            gpioe.pe5.into_alternate_af6(),       // SCK_A
+            gpioe.pe4.into_alternate_af6(),       // FS_A
+            gpioe.pe6.into_alternate_af6(),       // SD_A
+            Some(gpioe.pe3.into_alternate_af6()), // SD_B
+        );
 
         let dev_audio = device.SAI1.i2s_ch_a(
             pins_a,

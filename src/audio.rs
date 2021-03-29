@@ -1,9 +1,10 @@
 //! Audio module, handles audio startup and I/O
 //! As well as converting between the S24 input and f32 for processing
-use stm32h7xx_hal::traits::i2s::FullDuplex;
-use stm32h7xx_hal::{sai, sai::*, stm32};
+use log::info;
 
-use crate::system::{IoBuffer, BLOCK_SIZE_MAX};
+use stm32h7xx_hal::{dma, sai, sai::*, stm32};
+
+use crate::system::{DmaBuffer, BLOCK_SIZE_MAX, DMA_BUFFER_SIZE};
 
 // use core::marker::PhantomData;
 const FBIPMAX: f32 = 0.999985;
@@ -11,6 +12,25 @@ const FBIPMIN: f32 = -FBIPMAX;
 const F32_TO_S24_SCALE: f32 = 8388608.0; // 2 ** 23
 const S24_TO_F32_SCALE: f32 = 1.0 / F32_TO_S24_SCALE;
 const S24_SIGN: i32 = 0x800000;
+pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
+
+type ProgramBuffer = [u32; MAX_TRANSFER_SIZE];
+
+type DmaInputStream = dma::Transfer<
+    dma::dma::Stream1<stm32::DMA1>,
+    stm32::SAI1,
+    dma::PeripheralToMemory,
+    &'static mut [u32; DMA_BUFFER_SIZE],
+    dma::DBTransfer,
+>;
+
+type DmaOutputStream = dma::Transfer<
+    dma::dma::Stream0<stm32::DMA1>,
+    stm32::SAI1,
+    dma::MemoryToPeripheral,
+    &'static mut [u32; DMA_BUFFER_SIZE],
+    dma::DBTransfer,
+>;
 
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
@@ -61,51 +81,112 @@ impl From<S24> for f32 {
 }
 
 pub struct Audio {
-    pub stream: sai::Sai<stm32::SAI1, sai::I2S>,
-    pub input: Input,
-    pub output: Output,
+    sai: sai::Sai<stm32::SAI1, sai::I2S>,
+    input: Input,
+    output: Output,
+    input_stream: DmaInputStream,
+    output_stream: DmaOutputStream,
 }
 
 impl Audio {
     pub fn new(
-        mut stream: sai::Sai<stm32::SAI1, sai::I2S>,
-        input: &'static mut IoBuffer,
-        output: &'static mut IoBuffer,
+        mut sai: sai::Sai<stm32::SAI1, sai::I2S>,
+        mut input_stream: DmaInputStream,
+        mut output_stream: DmaOutputStream,
+        mut dma_input_buffer: DmaBuffer,
+        mut dma_output_buffer: DmaBuffer,
     ) -> Self {
-        stream.listen(SaiChannel::ChannelB, Event::Data);
-        stream.enable();
-        stream.try_send(0, 0).unwrap();
+        input_stream.start(|_sai1_rb| {
+            sai.enable_dma(SaiChannel::ChannelB);
+        });
+
+        output_stream.start(|sai1_rb| {
+            sai.enable_dma(SaiChannel::ChannelA);
+
+            // wait until sai1's fifo starts to receive data
+            info!("Sai1 fifo waiting to receive data.");
+            while sai1_rb.cha.sr.read().flvl().is_empty() {}
+            info!("Audio started!");
+            sai.enable();
+        });
+        let input = Input::new(dma_input_buffer);
+        let output = Output::new(dma_output_buffer);
         Audio {
-            stream,
-            input: Input { buffer: input },
-            output: Output::new(output),
+            sai,
+            input_stream,
+            output_stream,
+            input,
+            output,
         }
     }
 
-    pub fn read(&mut self) {
-        self.stream
-            .clear_irq(sai::SaiChannel::ChannelB, sai::Event::Data);
-        self.output.reset();
-        if let Ok((left, right)) = self.stream.try_read() {
-            self.input.buffer[0] = left;
-            self.input.buffer[1] = right;
+    fn read(&mut self) -> bool {
+        // Check interrupt(s)
+        if self.input_stream.get_half_transfer_flag() {
+            self.input_stream.clear_half_transfer_interrupt();
+            self.input.set_index(0);
+            self.output.set_index(MAX_TRANSFER_SIZE);
+            return true;
+        } else if self.input_stream.get_transfer_complete_flag() {
+            self.input_stream.clear_transfer_complete_interrupt();
+            self.input.set_index(MAX_TRANSFER_SIZE);
+            self.output.set_index(0);
+            return true;
+        } else {
+            return false;
+        };
+
+        // Copy data
+        // let mut index = 0;
+        // while index < MAX_TRANSFER_SIZE {
+        //     self.input.buffer[index] = self.dma_input_buffer[index+offset];
+        //     self.input.buffer[index+1] = self.dma_input_buffer[index+offset+1];
+        //     index += 2;
+        // }
+    }
+
+    pub fn get_stereo(&mut self, data: &mut [(f32, f32); MAX_TRANSFER_SIZE / 2]) {
+        // Needs an error condition of some sort
+        if self.read() {
+            let mut i = 0;
+            for (left, right) in
+                StereoIterator::new(&self.input.buffer[self.input.index..MAX_TRANSFER_SIZE])
+            {
+                data[i] = (left, right);
+                i += 1;
+            }
         }
     }
 
-    pub fn send(&mut self) {
-        let left = self.output.buffer[0];
-        let right = self.output.buffer[1];
-        self.stream.try_send(left, right).unwrap();
+    fn get_stereo_iter(&mut self) -> Option<StereoIterator> {
+        if self.read() {
+            return Some(StereoIterator::new(
+                &self.input.buffer[self.input.index..MAX_TRANSFER_SIZE],
+            ));
+        }
+        None
     }
 
-    // pub fn get_left(&self)
+    pub fn push_stereo(&mut self, data: (f32, f32)) -> Result<(), ()> {
+        return self.output.push(data);
+    }
 }
 
 pub struct Input {
-    buffer: &'static mut IoBuffer,
+    index: usize,
+    buffer: DmaBuffer,
 }
 
 impl Input {
+    /// Create a new Input from a DmaBuffer
+    fn new(buffer: DmaBuffer) -> Self {
+        Self { index: 0, buffer }
+    }
+
+    fn set_index(&mut self, index: usize) {
+        self.index = index;
+    }
+
     /// Get StereoIterator(interleaved) iterator
     pub fn get_stereo_iter(&self) -> Option<StereoIterator> {
         Some(StereoIterator::new(&self.buffer[..2]))
@@ -114,20 +195,21 @@ impl Input {
 
 pub struct Output {
     index: usize,
-    buffer: &'static mut IoBuffer,
+    buffer: DmaBuffer,
 }
 
 impl Output {
-    fn new(buffer: &'static mut IoBuffer) -> Self {
+    /// Create a new Input from a DmaBuffer
+    fn new(buffer: DmaBuffer) -> Self {
         Self { index: 0, buffer }
     }
 
-    fn reset(&mut self) {
-        self.index = 0;
+    fn set_index(&mut self, index: usize) {
+        self.index = index;
     }
 
     pub fn push(&mut self, data: (f32, f32)) -> Result<(), ()> {
-        if self.index < (BLOCK_SIZE_MAX * 2) {
+        if self.index < (MAX_TRANSFER_SIZE * 2) {
             self.buffer[self.index] = S24::from(data.0).into();
             self.buffer[self.index + 1] = S24::from(data.1).into();
             self.index += 2;

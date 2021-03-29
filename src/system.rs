@@ -8,6 +8,8 @@ use core::{mem, slice};
 
 use stm32h7xx_hal::adc;
 use stm32h7xx_hal::delay::Delay;
+use stm32h7xx_hal::dma;
+use stm32h7xx_hal::pac;
 use stm32h7xx_hal::prelude::*;
 use stm32h7xx_hal::rcc;
 use stm32h7xx_hal::sai::*;
@@ -46,9 +48,9 @@ const PLL3_R_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 16);
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
 pub const BLOCK_SIZE_MAX: usize = 48;
-pub const BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
+pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
-pub type IoBuffer = [u32; BUFFER_SIZE];
+pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
 
 const SLOTS: u8 = 2;
 const FIRST_BIT_OFFSET: u8 = 0;
@@ -57,14 +59,10 @@ const FIRST_BIT_OFFSET: u8 = 0;
 
 #[link_section = ".sram1_bss"]
 #[no_mangle]
-static mut buf_tx: IoBuffer = [0; BUFFER_SIZE];
+static mut TX_BUFFER: DmaBuffer = [0; DMA_BUFFER_SIZE];
 #[link_section = ".sram1_bss"]
 #[no_mangle]
-static mut buf_rx: IoBuffer = [0; BUFFER_SIZE];
-
-// #[link_section = ".sdram_bss"]
-// #[no_mangle]
-// static mut start_of_sdram: u32 = 0;
+static mut RX_BUFFER: DmaBuffer = [0; DMA_BUFFER_SIZE];
 
 /// Configure pins for the FMC controller
 macro_rules! fmc_pins {
@@ -135,8 +133,6 @@ impl System {
         );
 
         // Timers
-        // TODO
-        // ?
         core.DCB.enable_trace();
         DWT::unlock();
         core.DWT.enable_cycle_counter();
@@ -236,37 +232,44 @@ impl System {
             pin_group[DSY_QSPI_PIN_NCS] =
             dsy_pin(DSY_GPIOG, 6);
         */
-        info!("Setup up SAI...");
 
+        info!("Setup up DMA...");
+        let dma1_streams = dma::dma::StreamsTuple::new(device.DMA1, ccdr.peripheral.DMA1);
+        // dma1 stream 0
+        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+        let dma_config = dma::dma::DmaConfig::default()
+            .priority(dma::config::Priority::High)
+            .memory_increment(true)
+            .peripheral_increment(false)
+            .circular_buffer(true)
+            .fifo_enable(false);
+        let mut dma1_str0: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> = dma::Transfer::init(
+            dma1_streams.0,
+            unsafe { pac::Peripherals::steal().SAI1 },
+            tx_buffer,
+            None,
+            dma_config,
+        );
+
+        // dma1 stream 1
+        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+        let dma_config = dma_config
+            .transfer_complete_interrupt(true)
+            .half_transfer_interrupt(true);
+        let dma1_str1: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> = dma::Transfer::init(
+            dma1_streams.1,
+            unsafe { pac::Peripherals::steal().SAI1 },
+            rx_buffer,
+            None,
+            dma_config,
+        );
+
+        info!("Setup up SAI...");
         let sai1_rec = ccdr.peripheral.SAI1.kernel_clk_mux(SAI1SEL_A::PLL3_P);
         let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
         let slave_config = I2SChanConfig::new(I2SDir::Rx)
             .set_sync_type(I2SSync::Internal)
             .set_frame_sync_active_high(true);
-
-        let dev_audio = device.SAI1.i2s_ch_a(
-            pins_a,
-            AUDIO_SAMPLE_HZ,
-            I2SDataSize::BITS_24,
-            sai1_rec,
-            &ccdr.clocks,
-            master_config,
-            Some(slave_config),
-        );
-        let audio;
-        unsafe {
-            audio = audio::Audio::new(dev_audio, &mut buf_rx, &mut buf_tx);
-        }
-
-        // ccdr.peripheral.DMA1.enable().reset();
-        // ccdr.peripheral.DMA1.enable().reset();
-        // let dma1_channels = device.DMA1.split();
-        // let mut stream0 = dma1_channels.0;
-        // let mut stream1 = dma1_channels.1;
-        // unsafe {
-        //     stream0.set_memory_address(buf_tx[..].as_ptr() as u32, true);
-        //     stream1.set_memory_address(buf_rx[..].as_ptr() as u32, true);
-        // }
 
         // Setup GPIOs
         let mut gpio = crate::gpio::GPIO::init(
@@ -304,7 +307,29 @@ impl System {
             Some(gpiob.pb14),
             Some(gpiob.pb15),
         );
+
+        // Audio Startup
+        // Reset AK4556 Codec
         gpio.reset_codec();
+        // Unmask interrupt handler for dma 1, stream 1
+        unsafe {
+            pac::NVIC::unmask(pac::Interrupt::DMA1_STR1);
+        }
+
+        // Hand off to audio module
+        let dev_audio = device.SAI1.i2s_ch_a(
+            pins_a,
+            AUDIO_SAMPLE_HZ,
+            I2SDataSize::BITS_24,
+            sai1_rec,
+            &ccdr.clocks,
+            master_config,
+            Some(slave_config),
+        );
+        let audio;
+        unsafe {
+            audio = audio::Audio::new(dev_audio, dma1_str1, dma1_str0, RX_BUFFER, TX_BUFFER);
+        }
 
         // Setup cache
         core.SCB.invalidate_icache();

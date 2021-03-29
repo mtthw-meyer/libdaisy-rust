@@ -69,7 +69,7 @@ const APP: () = {
         }
     }
 
-    // Interrupt handler for audio, should not generally need to be modified
+    // Interrupt handler for audio
     #[task( binds = SAI1, resources = [audio, control1], priority = 8 )]
     fn audio_handler(ctx: audio_handler::Context) {
         let audio = ctx.resources.audio;

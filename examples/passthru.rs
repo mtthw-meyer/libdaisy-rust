@@ -49,7 +49,7 @@ const APP: () = {
 
         audio.get_stereo(buffer);
         for (left, right) in buffer {
-            audio.push_stereo((0.0, 0.0)).unwrap();
+            audio.push_stereo((left, right)).unwrap();
         }
     }
 };

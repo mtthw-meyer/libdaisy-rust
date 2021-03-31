@@ -31,10 +31,3 @@ cargo objcopy --example toggle --release -- -O binary toggle.bin
 cargo objcopy --example passthru --release -- -O binary passthru.bin
 
 [cargo-binutils-url]: https://github.com/rust-embedded/cargo-binutils
-
-## TODO
-* DMA - Get audio data via DMA instead of SAI FIFO. See [Issue 80](https://github.com/stm32-rs/stm32h7xx-hal/issues/80).
-* SDRAM - The SDRAM needs to be brought online using [stm32h7-fmc](https://crates.io/crates/stm32h7-fmc).
-* MPU - The memory protection unit needs to be configured.
-* dcache - Needs to be enabled.
-* QSPI - Configur QSPI flash memory.

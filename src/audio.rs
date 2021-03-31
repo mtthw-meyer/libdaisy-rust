@@ -2,6 +2,7 @@
 //! As well as converting between the S24 input and f32 for processing
 use log::info;
 
+use stm32h7xx_hal::traits::i2s::FullDuplex;
 use stm32h7xx_hal::{dma, sai, sai::*, stm32};
 
 use crate::system::{DmaBuffer, BLOCK_SIZE_MAX, DMA_BUFFER_SIZE};
@@ -93,8 +94,8 @@ impl Audio {
         mut sai: sai::Sai<stm32::SAI1, sai::I2S>,
         mut input_stream: DmaInputStream,
         mut output_stream: DmaOutputStream,
-        mut dma_input_buffer: DmaBuffer,
-        mut dma_output_buffer: DmaBuffer,
+        mut dma_input_buffer: &'static DmaBuffer,
+        mut dma_output_buffer: &'static mut DmaBuffer,
     ) -> Self {
         input_stream.start(|_sai1_rb| {
             sai.enable_dma(SaiChannel::ChannelB);
@@ -104,13 +105,18 @@ impl Audio {
             sai.enable_dma(SaiChannel::ChannelA);
 
             // wait until sai1's fifo starts to receive data
-            info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.cha.sr.read().flvl().is_empty() {}
-            info!("Audio started!");
+            // info!("Sai1 fifo waiting to receive data.");
+            // while sai1_rb.cha.sr.read().flvl().is_empty() {}
+            // info!("Audio started!");
             sai.enable();
+            sai.try_send(0, 0).unwrap();
         });
         let input = Input::new(dma_input_buffer);
         let output = Output::new(dma_output_buffer);
+        info!(
+            "{:?}, {:?}",
+            &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
+        );
         Audio {
             sai,
             input_stream,
@@ -126,23 +132,29 @@ impl Audio {
             self.input_stream.clear_half_transfer_interrupt();
             self.input.set_index(0);
             self.output.set_index(MAX_TRANSFER_SIZE);
-            return true;
+            true
         } else if self.input_stream.get_transfer_complete_flag() {
             self.input_stream.clear_transfer_complete_interrupt();
             self.input.set_index(MAX_TRANSFER_SIZE);
             self.output.set_index(0);
-            return true;
+            true
         } else {
-            return false;
-        };
+            false
+        }
+    }
 
+    pub fn passthru(&mut self) {
         // Copy data
-        // let mut index = 0;
-        // while index < MAX_TRANSFER_SIZE {
-        //     self.input.buffer[index] = self.dma_input_buffer[index+offset];
-        //     self.input.buffer[index+1] = self.dma_input_buffer[index+offset+1];
-        //     index += 2;
-        // }
+        if self.read() {
+            let mut index = 0;
+            let mut out_index = self.output.index;
+            while index < MAX_TRANSFER_SIZE {
+                self.output.buffer[out_index] = self.input.buffer[index + self.input.index];
+                self.output.buffer[out_index + 1] = self.input.buffer[index + self.input.index + 1];
+                index += 2;
+                out_index += 2;
+            }
+        }
     }
 
     pub fn get_stereo(&mut self, data: &mut [(f32, f32); MAX_TRANSFER_SIZE / 2]) {
@@ -174,12 +186,12 @@ impl Audio {
 
 pub struct Input {
     index: usize,
-    buffer: DmaBuffer,
+    buffer: &'static DmaBuffer,
 }
 
 impl Input {
     /// Create a new Input from a DmaBuffer
-    fn new(buffer: DmaBuffer) -> Self {
+    fn new(buffer: &'static DmaBuffer) -> Self {
         Self { index: 0, buffer }
     }
 
@@ -195,12 +207,12 @@ impl Input {
 
 pub struct Output {
     index: usize,
-    buffer: DmaBuffer,
+    buffer: &'static mut DmaBuffer,
 }
 
 impl Output {
     /// Create a new Input from a DmaBuffer
-    fn new(buffer: DmaBuffer) -> Self {
+    fn new(buffer: &'static mut DmaBuffer) -> Self {
         Self { index: 0, buffer }
     }
 

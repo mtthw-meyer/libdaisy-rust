@@ -122,6 +122,10 @@ impl System {
 
         // log_clocks(&ccdr);
 
+        // Setup cache
+        core.SCB.enable_icache();
+        core.SCB.enable_dcache(&mut core.CPUID);
+
         let mut delay = Delay::new(core.SYST, ccdr.clocks);
         // Setup ADCs
         let (adc1, adc2) = adc::adc12(
@@ -147,7 +151,7 @@ impl System {
         //     .timer(1.ms(), ccdr.peripheral.TIM3, &mut ccdr.clocks);
         // timer3.listen(Event::TimeOut);
 
-        // info!("Setting up GPIOs...");
+        info!("Setting up GPIOs...");
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
         let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
         let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
@@ -235,6 +239,7 @@ impl System {
 
         info!("Setup up DMA...");
         let dma1_streams = dma::dma::StreamsTuple::new(device.DMA1, ccdr.peripheral.DMA1);
+
         // dma1 stream 0
         let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
@@ -256,7 +261,7 @@ impl System {
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
-        let dma1_str1: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> = dma::Transfer::init(
+        let mut dma1_str1: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> = dma::Transfer::init(
             dma1_streams.1,
             unsafe { pac::Peripherals::steal().SAI1 },
             rx_buffer,
@@ -308,14 +313,6 @@ impl System {
             Some(gpiob.pb15),
         );
 
-        // Audio Startup
-        // Reset AK4556 Codec
-        gpio.reset_codec();
-        // Unmask interrupt handler for dma 1, stream 1
-        unsafe {
-            pac::NVIC::unmask(pac::Interrupt::DMA1_STR1);
-        }
-
         // Hand off to audio module
         let dev_audio = device.SAI1.i2s_ch_a(
             pins_a,
@@ -326,16 +323,21 @@ impl System {
             master_config,
             Some(slave_config),
         );
+
+        // Audio Startup
+        // Reset AK4556 Codec
+        gpio.reset_codec();
+
         let audio;
         unsafe {
-            audio = audio::Audio::new(dev_audio, dma1_str1, dma1_str0, RX_BUFFER, TX_BUFFER);
+            audio = audio::Audio::new(
+                dev_audio,
+                dma1_str1,
+                dma1_str0,
+                &mut RX_BUFFER,
+                &mut TX_BUFFER,
+            );
         }
-
-        // Setup cache
-        core.SCB.invalidate_icache();
-        core.SCB.enable_icache();
-        // core.SCB.clean_invalidate_dcache(&mut core.CPUID);
-        // core.SCB.enable_dcache(&mut core.CPUID);
 
         info!("System init done!");
 

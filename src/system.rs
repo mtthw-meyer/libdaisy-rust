@@ -55,8 +55,7 @@ pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
 const SLOTS: u8 = 2;
 const FIRST_BIT_OFFSET: u8 = 0;
 
-// 805306368 805306368
-
+const START_OF_DRAM2: u32 = 0x30000000;
 #[link_section = ".sram1_bss"]
 #[no_mangle]
 static mut TX_BUFFER: DmaBuffer = [0; DMA_BUFFER_SIZE];
@@ -90,9 +89,9 @@ pub struct System {
 }
 
 impl System {
-    pub fn init(mut core: cortex_m::Peripherals, device: stm32::Peripherals) -> System {
-        // let mut core = device::CorePeripherals::take().unwrap();
+    pub fn init(mut core: rtic::export::Peripherals, device: stm32::Peripherals) -> System {
         info!("Starting system init");
+
         // Power
         let pwr = device.PWR.constrain();
         let vos = pwr.vos0(&device.SYSCFG).freeze();
@@ -121,10 +120,6 @@ impl System {
             .freeze(vos, &device.SYSCFG);
 
         // log_clocks(&ccdr);
-
-        // Setup cache
-        core.SCB.enable_icache();
-        core.SCB.enable_dcache(&mut core.CPUID);
 
         let mut delay = Delay::new(core.SYST, ccdr.clocks);
         // Setup ADCs
@@ -238,6 +233,14 @@ impl System {
         */
 
         info!("Setup up DMA...");
+        const DMA_MEM_SIZE: usize = 32 * 1024;
+        mpu_dma_init(
+            &mut core.MPU,
+            &mut core.SCB,
+            START_OF_DRAM2 as *mut u32,
+            DMA_MEM_SIZE,
+        );
+
         let dma1_streams = dma::dma::StreamsTuple::new(device.DMA1, ccdr.peripheral.DMA1);
 
         // dma1 stream 0
@@ -248,7 +251,7 @@ impl System {
             .peripheral_increment(false)
             .circular_buffer(true)
             .fifo_enable(false);
-        let mut dma1_str0: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> = dma::Transfer::init(
+        let dma1_str0: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> = dma::Transfer::init(
             dma1_streams.0,
             unsafe { pac::Peripherals::steal().SAI1 },
             tx_buffer,
@@ -261,7 +264,7 @@ impl System {
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
-        let mut dma1_str1: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> = dma::Transfer::init(
+        let dma1_str1: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> = dma::Transfer::init(
             dma1_streams.1,
             unsafe { pac::Peripherals::steal().SAI1 },
             rx_buffer,
@@ -339,6 +342,10 @@ impl System {
             );
         }
 
+        // Setup cache
+        core.SCB.enable_icache();
+        core.SCB.enable_dcache(&mut core.CPUID);
+
         info!("System init done!");
 
         System {
@@ -381,13 +388,7 @@ fn log_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
     );
 }
 
-// MPU
-// Configure MPU per Seed
-// https://github.com/electro-smith/libDaisy/blob/04479d151dc275203a02e64fbfa2ab2bf6c0a91a/src/sys_system.c
-// core.MPU.
-// let mpu = unsafe { cortex_mpu::Mpu::new(core.MPU) };
-
-/// Configure MPU for external SDRAM
+/// Configure MPU
 ///
 /// Based on example from:
 /// https://github.com/richardeoin/stm32h7-fmc/blob/master/examples/stm32h747i-disco.rs
@@ -398,29 +399,103 @@ fn log_clocks(ccdr: &stm32h7xx_hal::rcc::Ccdr) {
 ///
 /// Function will panic if `size` is not a power of 2. Function
 /// will panic if `size` is not at least 32 bytes.
+
+/// Refer to ARM®v7-M Architecture Reference Manual ARM DDI 0403
+/// Version E.b Section B3.5
+const MEMFAULTENA: u32 = 1 << 16;
+const REGION_FULL_ACCESS: u32 = 0x03;
+const REGION_ENABLE: u32 = 0x01;
+
+fn mpu_disable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripheral::SCB) {
+    unsafe {
+        /* Make sure outstanding transfers are done */
+        cortex_m::asm::dmb();
+        scb.shcsr.modify(|r| r & !MEMFAULTENA);
+        /* Disable the MPU and clear the control register*/
+        mpu.ctrl.write(0);
+    }
+}
+
+fn mpu_enable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripheral::SCB) {
+    const MPU_ENABLE: u32 = 0x01;
+    const MPU_DEFAULT_MMAP_FOR_PRIVILEGED: u32 = 0x04;
+
+    unsafe {
+        mpu.ctrl
+            .modify(|r| r | MPU_DEFAULT_MMAP_FOR_PRIVILEGED | MPU_ENABLE);
+
+        scb.shcsr.modify(|r| r | MEMFAULTENA);
+
+        // Ensure MPU settings take effect
+        cortex_m::asm::dsb();
+        cortex_m::asm::isb();
+    }
+}
+
+fn log2minus1(sz: u32) -> u32 {
+    for x in 5..=31 {
+        if sz == (1 << x) {
+            return x - 1;
+        }
+    }
+    panic!("Unknown memory region size!");
+}
+
+fn mpu_dma_init(
+    mpu: &mut cortex_m::peripheral::MPU,
+    scb: &mut cortex_m::peripheral::SCB,
+    location: *mut u32,
+    size: usize,
+) {
+    mpu_disable(mpu, scb);
+
+    const REGION_NUMBER0: u32 = 0x00;
+    const REGION_SHAREABLE: u32 = 0x01;
+    const REGION_TEX: u32 = 0b001;
+    const REGION_CB: u32 = 0b00;
+
+    assert_eq!(
+        size & (size - 1),
+        0,
+        "Memory region size must be a power of 2"
+    );
+    assert_eq!(
+        size & 0x1F,
+        0,
+        "Memory region size must be 32 bytes or more"
+    );
+
+    info!("Memory Size 0x{:x}", log2minus1(size as u32));
+
+    // Configure region 0
+    //
+    // Strongly ordered
+    unsafe {
+        mpu.rnr.write(REGION_NUMBER0);
+        mpu.rbar.write((location as u32) & !0x1F);
+        mpu.rasr.write(
+            (REGION_FULL_ACCESS << 24)
+                | (REGION_TEX << 19)
+                | (REGION_SHAREABLE << 18)
+                | (REGION_CB << 16)
+                | (log2minus1(size as u32) << 1)
+                | REGION_ENABLE,
+        );
+    }
+
+    mpu_enable(mpu, scb);
+}
+
 fn mpu_sdram_init(
     mpu: &mut cortex_m::peripheral::MPU,
     scb: &mut cortex_m::peripheral::SCB,
     location: *mut u32,
     size: usize,
 ) {
-    /// Refer to ARM®v7-M Architecture Reference Manual ARM DDI 0403
-    /// Version E.b Section B3.5
-    const MEMFAULTENA: u32 = 1 << 16;
+    mpu_disable(mpu, scb);
 
-    unsafe {
-        /* Make sure outstanding transfers are done */
-        cortex_m::asm::dmb();
-
-        scb.shcsr.modify(|r| r & !MEMFAULTENA);
-
-        /* Disable the MPU and clear the control register*/
-        mpu.ctrl.write(0);
-    }
-
+    // SDRAM
     const REGION_NUMBER1: u32 = 0x01;
-    const REGION_FULL_ACCESS: u32 = 0x03;
-    const REGION_ENABLE: u32 = 0x01;
 
     assert_eq!(
         size & (size - 1),
@@ -432,14 +507,6 @@ fn mpu_sdram_init(
         0,
         "SDRAM memory region size must be 32 bytes or more"
     );
-    fn log2minus1(sz: u32) -> u32 {
-        for x in 5..=31 {
-            if sz == (1 << x) {
-                return x - 1;
-            }
-        }
-        panic!("Unknown SDRAM memory region size!");
-    }
 
     info!("SDRAM Memory Size 0x{:x}", log2minus1(size as u32));
 
@@ -453,18 +520,5 @@ fn mpu_sdram_init(
             .write((REGION_FULL_ACCESS << 24) | (log2minus1(size as u32) << 1) | REGION_ENABLE);
     }
 
-    const MPU_ENABLE: u32 = 0x01;
-    const MPU_DEFAULT_MMAP_FOR_PRIVILEGED: u32 = 0x04;
-
-    // Enable
-    unsafe {
-        mpu.ctrl
-            .modify(|r| r | MPU_DEFAULT_MMAP_FOR_PRIVILEGED | MPU_ENABLE);
-
-        scb.shcsr.modify(|r| r | MEMFAULTENA);
-
-        // Ensure MPU settings take effect
-        cortex_m::asm::dsb();
-        cortex_m::asm::isb();
-    }
+    mpu_enable(mpu, scb);
 }

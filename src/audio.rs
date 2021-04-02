@@ -94,8 +94,8 @@ impl Audio {
         mut sai: sai::Sai<stm32::SAI1, sai::I2S>,
         mut input_stream: DmaInputStream,
         mut output_stream: DmaOutputStream,
-        mut dma_input_buffer: &'static DmaBuffer,
-        mut dma_output_buffer: &'static mut DmaBuffer,
+        dma_input_buffer: &'static DmaBuffer,
+        dma_output_buffer: &'static mut DmaBuffer,
     ) -> Self {
         input_stream.start(|_sai1_rb| {
             sai.enable_dma(SaiChannel::ChannelB);
@@ -105,9 +105,9 @@ impl Audio {
             sai.enable_dma(SaiChannel::ChannelA);
 
             // wait until sai1's fifo starts to receive data
-            // info!("Sai1 fifo waiting to receive data.");
-            // while sai1_rb.cha.sr.read().flvl().is_empty() {}
-            // info!("Audio started!");
+            info!("Sai1 fifo waiting to receive data.");
+            while sai1_rb.cha.sr.read().flvl().is_empty() {}
+            info!("Audio started!");
             sai.enable();
             sai.try_send(0, 0).unwrap();
         });
@@ -131,12 +131,12 @@ impl Audio {
         if self.input_stream.get_half_transfer_flag() {
             self.input_stream.clear_half_transfer_interrupt();
             self.input.set_index(0);
-            self.output.set_index(MAX_TRANSFER_SIZE);
+            self.output.set_index(0);
             true
         } else if self.input_stream.get_transfer_complete_flag() {
             self.input_stream.clear_transfer_complete_interrupt();
             self.input.set_index(MAX_TRANSFER_SIZE);
-            self.output.set_index(0);
+            self.output.set_index(MAX_TRANSFER_SIZE);
             true
         } else {
             false

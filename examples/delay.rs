@@ -15,6 +15,7 @@ use libdaisy_rust::system;
 const APP: () = {
     struct Resources {
         audio: audio::Audio,
+        buffer: audio::AudioBuffer,
         sdram: &'static mut [f32],
         #[init(0)]
         index: usize,
@@ -24,11 +25,13 @@ const APP: () = {
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
         let system = system::System::init(ctx.core, ctx.device);
+        let buffer = [(0.0, 0.0); system::BLOCK_SIZE_MAX];
 
         info!("Startup done!");
 
         init::LateResources {
             audio: system.audio,
+            buffer,
             sdram: system.sdram,
         }
     }
@@ -42,26 +45,23 @@ const APP: () = {
         }
     }
 
-    // Interrupt handler for audio, should not generally need to be modified
-    #[task( binds = SAI1, resources = [audio, sdram, index], priority = 8 )]
+    // Interrupt handler for audio
+    #[task( binds = DMA1_STR1, resources = [audio, buffer, sdram, index], priority = 8 )]
     fn audio_handler(ctx: audio_handler::Context) {
         let audio = ctx.resources.audio;
+        let buffer = ctx.resources.buffer;
         let sdram: &mut [f32] = ctx.resources.sdram;
         let index: &mut usize = ctx.resources.index;
-        audio.read();
 
-        if let Some(stereo_iter) = audio.input.get_stereo_iter() {
-            for (left, right) in stereo_iter {
+        if audio.get_stereo(buffer) {
+            for (left, right) in buffer {
                 audio
-                    .output
-                    .push((sdram[*index], sdram[*index + 1]))
+                    .push_stereo((sdram[*index], sdram[*index + 1]))
                     .unwrap();
-                sdram[*index] = left;
-                sdram[*index + 1] = right;
-                *index = (*index + 2) % 48_000;
+                sdram[*index] = *left;
+                sdram[*index + 1] = *right;
+                *index = (*index + 2) % libdaisy_rust::AUDIO_SAMPLE_RATE;
             }
         }
-
-        audio.send();
     }
 };

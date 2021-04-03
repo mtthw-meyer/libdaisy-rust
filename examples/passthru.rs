@@ -15,17 +15,20 @@ use libdaisy_rust::system;
 const APP: () = {
     struct Resources {
         audio: audio::Audio,
+        buffer: audio::AudioBuffer,
     }
 
     #[init]
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
         let system = system::System::init(ctx.core, ctx.device);
+        let buffer = [(0.0, 0.0); system::BLOCK_SIZE_MAX];
 
         info!("Startup done!");
 
         init::LateResources {
             audio: system.audio,
+            buffer,
         }
     }
 
@@ -38,18 +41,18 @@ const APP: () = {
         }
     }
 
-    // Interrupt handler for audio, should not generally need to be modified
-    #[task( binds = SAI1, resources = [audio], priority = 8 )]
+    // Interrupt handler for audio
+    #[task( binds = DMA1_STR1, resources = [audio, buffer], priority = 8 )]
     fn audio_handler(ctx: audio_handler::Context) {
         let audio = ctx.resources.audio;
-        audio.read();
+        let buffer = ctx.resources.buffer;
 
-        if let Some(stereo_iter) = audio.input.get_stereo_iter() {
-            for (left, right) in stereo_iter {
-                audio.output.push((left, right)).unwrap();
+        if audio.get_stereo(buffer) {
+            for (left, right) in buffer {
+                audio.push_stereo((*left, *right)).unwrap();
             }
+        } else {
+            info!("Error reading data!");
         }
-
-        audio.send();
     }
 };

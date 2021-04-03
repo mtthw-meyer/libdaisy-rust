@@ -79,13 +79,14 @@ const APP: () = {
         let buffer = ctx.resources.buffer;
 
         // audio.passthru();
-        audio.get_stereo(buffer);
-        for (left, right) in buffer {
-            let mut volume = ctx.resources.control1.get_value();
-            volume *= volume;
-            *left *= volume;
-            *right *= volume;
-            audio.push_stereo((*left, *right)).unwrap();
+        if audio.get_stereo(buffer) {
+            for (left, right) in buffer {
+                let mut volume = ctx.resources.control1.get_value();
+                volume *= volume;
+                *left *= volume;
+                *right *= volume;
+                audio.push_stereo((*left, *right)).unwrap();
+            }
         }
     }
 

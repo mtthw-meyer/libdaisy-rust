@@ -158,8 +158,7 @@ impl Audio {
         }
     }
 
-    pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) {
-        // Needs an error condition of some sort
+    pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
             let mut i = 0;
             for (left, right) in StereoIterator::new(
@@ -168,6 +167,9 @@ impl Audio {
                 buffer[i] = (left, right);
                 i += 1;
             }
+            true
+        } else {
+            false
         }
     }
 

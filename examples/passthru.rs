@@ -47,10 +47,14 @@ const APP: () = {
         let audio = ctx.resources.audio;
         let buffer = ctx.resources.buffer;
 
-        // audio.passthru();
-        audio.get_stereo(buffer);
-        for (left, right) in buffer {
-            audio.push_stereo((*left, *right)).unwrap();
+
+        if audio.get_stereo(buffer) {
+            for (left, right) in buffer {
+                audio.push_stereo((*left, *right)).unwrap();
+            }
+        } else {
+            info!("Error reading data!");
         }
+
     }
 };

@@ -53,14 +53,15 @@ const APP: () = {
         let sdram: &mut [f32] = ctx.resources.sdram;
         let index: &mut usize = ctx.resources.index;
 
-        audio.get_stereo(buffer);
-        for (left, right) in buffer {
-            audio
-                .push_stereo((sdram[*index], sdram[*index + 1]))
-                .unwrap();
-            sdram[*index] = *left;
-            sdram[*index + 1] = *right;
-            *index = (*index + 2) % libdaisy_rust::AUDIO_SAMPLE_RATE;
+        if audio.get_stereo(buffer) {
+            for (left, right) in buffer {
+                audio
+                    .push_stereo((sdram[*index], sdram[*index + 1]))
+                    .unwrap();
+                sdram[*index] = *left;
+                sdram[*index + 1] = *right;
+                *index = (*index + 2) % libdaisy_rust::AUDIO_SAMPLE_RATE;
+            }
         }
     }
 };

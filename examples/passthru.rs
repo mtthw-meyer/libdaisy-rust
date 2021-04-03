@@ -15,14 +15,14 @@ use libdaisy_rust::system;
 const APP: () = {
     struct Resources {
         audio: audio::Audio,
-        buffer: [(f32, f32); audio::MAX_TRANSFER_SIZE / 2],
+        buffer: audio::AudioBuffer,
     }
 
     #[init]
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
         let system = system::System::init(ctx.core, ctx.device);
-        let buffer = [(0.0, 0.0); audio::MAX_TRANSFER_SIZE / 2];
+        let buffer = [(0.0, 0.0); system::BLOCK_SIZE_MAX];
 
         info!("Startup done!");
 
@@ -47,11 +47,10 @@ const APP: () = {
         let audio = ctx.resources.audio;
         let buffer = ctx.resources.buffer;
 
-        audio.passthru();
-
-        // audio.get_stereo(buffer);
-        // for (left, right) in buffer {
-        //     audio.push_stereo((*left, *right)).unwrap();
-        // }
+        // audio.passthru();
+        audio.get_stereo(buffer);
+        for (left, right) in buffer {
+            audio.push_stereo((*left, *right)).unwrap();
+        }
     }
 };

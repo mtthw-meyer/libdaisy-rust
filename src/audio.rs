@@ -15,7 +15,7 @@ const S24_TO_F32_SCALE: f32 = 1.0 / F32_TO_S24_SCALE;
 const S24_SIGN: i32 = 0x800000;
 pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
-type ProgramBuffer = [u32; MAX_TRANSFER_SIZE];
+pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
 
 type DmaInputStream = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
@@ -143,6 +143,7 @@ impl Audio {
         }
     }
 
+    /// This shouldn't be needed but left in for having the option
     pub fn passthru(&mut self) {
         // Copy data
         if self.read() {
@@ -157,14 +158,14 @@ impl Audio {
         }
     }
 
-    pub fn get_stereo(&mut self, data: &mut [(f32, f32); MAX_TRANSFER_SIZE / 2]) {
+    pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) {
         // Needs an error condition of some sort
         if self.read() {
             let mut i = 0;
-            for (left, right) in
-                StereoIterator::new(&self.input.buffer[self.input.index..MAX_TRANSFER_SIZE])
-            {
-                data[i] = (left, right);
+            for (left, right) in StereoIterator::new(
+                &self.input.buffer[self.input.index..self.input.index + MAX_TRANSFER_SIZE],
+            ) {
+                buffer[i] = (left, right);
                 i += 1;
             }
         }

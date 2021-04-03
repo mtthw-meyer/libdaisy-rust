@@ -26,6 +26,7 @@ use libdaisy_rust::MILICYCLES;
 const APP: () = {
     struct Resources {
         audio: audio::Audio,
+        buffer: audio::AudioBuffer,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
         control1: hid::AnalogControl<Daisy15<Analog>>,
         timer2: Timer<stm32::TIM2>,
@@ -35,6 +36,7 @@ const APP: () = {
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
+        let buffer = [(0.0, 0.0); system::BLOCK_SIZE_MAX];
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();
@@ -54,6 +56,7 @@ const APP: () = {
 
         init::LateResources {
             audio: system.audio,
+            buffer,
             adc1,
             control1,
             timer2: system.timer2,
@@ -70,22 +73,20 @@ const APP: () = {
     }
 
     // Interrupt handler for audio
-    #[task( binds = SAI1, resources = [audio, control1], priority = 8 )]
+    #[task( binds = DMA1_STR1, resources = [audio, buffer, control1], priority = 8 )]
     fn audio_handler(ctx: audio_handler::Context) {
         let audio = ctx.resources.audio;
-        audio.read();
+        let buffer = ctx.resources.buffer;
 
-        if let Some(stereo_iter) = audio.input.get_stereo_iter() {
-            for (mut left, mut right) in stereo_iter {
-                // Highest priority task can access without locking
-                let volume = ctx.resources.control1.get_value();
-                left *= volume;
-                right *= volume;
-                audio.output.push((left, right)).unwrap();
-            }
+        // audio.passthru();
+        audio.get_stereo(buffer);
+        for (left, right) in buffer {
+            let mut volume = ctx.resources.control1.get_value();
+            volume *= volume;
+            *left *= volume;
+            *right *= volume;
+            audio.push_stereo((*left, *right)).unwrap();
         }
-
-        audio.send();
     }
 
     #[task( binds = TIM2, resources = [timer2, adc1, control1] )]

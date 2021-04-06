@@ -160,12 +160,12 @@ impl Audio {
 
     pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
-            let mut i = 0;
-            for (left, right) in StereoIterator::new(
+            for (i, (left, right)) in StereoIterator::new(
                 &self.input.buffer[self.input.index..self.input.index + MAX_TRANSFER_SIZE],
-            ) {
+            )
+            .enumerate()
+            {
                 buffer[i] = (left, right);
-                i += 1;
             }
             true
         } else {
@@ -183,7 +183,7 @@ impl Audio {
     }
 
     pub fn push_stereo(&mut self, data: (f32, f32)) -> Result<(), ()> {
-        return self.output.push(data);
+        self.output.push(data)
     }
 }
 

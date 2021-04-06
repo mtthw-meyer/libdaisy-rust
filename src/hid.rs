@@ -50,6 +50,7 @@ where
         }
     }
 
+    /// Set the threshold in number of calls to update
     pub fn set_held_thresh(&mut self, held_threshold: Option<u32>) {
         self.held_threshold = if let Some(held_threshold) = held_threshold {
             Some(held_threshold)
@@ -58,6 +59,7 @@ where
         };
     }
 
+    /// Set the threshold in number of calls to update
     pub fn set_double_thresh(&mut self, double_threshold: Option<u32>) {
         self.double_threshold = if let Some(double_threshold) = double_threshold {
             Some(double_threshold)
@@ -155,7 +157,7 @@ pub struct AnalogControl<T> {
     state: [f32; ANALOG_ARR_SIZE],
     scale: f32,
     transform: Option<TransformFn>,
-    pub pin: T,
+    pin: T,
     index: usize,
 }
 
@@ -191,6 +193,10 @@ impl<T> AnalogControl<T> {
         }
         value
     }
+
+    pub fn get_pin(&mut self) -> &mut T {
+        &mut self.pin
+    }
 }
 
 pub struct Led<T> {
@@ -201,6 +207,10 @@ pub struct Led<T> {
     resolution: u32,
     brightness: f32,
     pwm: f32,
+    blink_on: Option<u32>,
+    blink_off: Option<u32>,
+    blink_counter: u32,
+    blink_status_on: bool,
 }
 
 impl<T> Led<T>
@@ -214,17 +224,38 @@ where
             resolution,
             brightness: 0.0,
             pwm: 0.0,
+            blink_on: None,
+            blink_off: None,
+            blink_counter: 0,
+            blink_status_on: false,
         }
     }
 
     pub fn set_brightness(&mut self, value: f32) {
-        // TODO clamp to [0.0,1.0] ?
+        let value = if value > 1.0 {
+            1.0
+        } else if value < 0.0 {
+            0.0
+        } else {
+            value
+        };
         match self.invert {
             // Bias for slower transitions in the low brightness range
             // TODO configurable?
             true => self.brightness = value.sqrt(),
             false => self.brightness = value * value,
         }
+    }
+
+    pub fn set_blink(&mut self, blink_on: u32, blink_off: u32) {
+        self.blink_on = Some(blink_on);
+        self.blink_off = Some(blink_off);
+        self.blink_counter = 0;
+    }
+
+    pub fn clear_blink(&mut self) {
+        self.blink_on = None;
+        self.blink_off = None;
     }
 
     pub fn update(&mut self) {
@@ -248,5 +279,25 @@ where
             .ok()
             .unwrap();
         }
+
+        if let (Some(blink_on), Some(blink_off)) = (self.blink_on, self.blink_off) {
+            self.blink_counter += 1;
+            let threshold = if self.blink_status_on {
+                blink_on
+            } else {
+                blink_off
+            };
+
+            if self.blink_counter > threshold {
+                self.blink_status_on = !self.blink_status_on;
+                self.blink_counter = 0;
+                if (self.blink_status_on && !self.invert) || (!self.blink_status_on && self.invert)
+                {
+                    self.pin.set_high().ok().unwrap();
+                } else {
+                    self.pin.set_low().ok().unwrap();
+                }
+            }
+        };
     }
 }

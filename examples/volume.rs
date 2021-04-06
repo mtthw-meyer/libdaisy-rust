@@ -78,7 +78,6 @@ const APP: () = {
         let audio = ctx.resources.audio;
         let buffer = ctx.resources.buffer;
 
-        // audio.passthru();
         if audio.get_stereo(buffer) {
             for (left, right) in buffer {
                 let mut volume = ctx.resources.control1.get_value();
@@ -96,12 +95,10 @@ const APP: () = {
         let adc1 = ctx.resources.adc1;
 
         // Lower priority task(s) need to lock the resource.
-        let mut data = 0;
-        let mut val: f32 = 0.0;
         ctx.resources.control1.lock(|control1| {
-            data = adc1.read(&mut control1.pin).unwrap();
-            control1.update(data);
-            val = control1.get_value();
+            if let Ok(data) = adc1.read(control1.get_pin()) {
+                control1.update(data);
+            };
         });
     }
 };

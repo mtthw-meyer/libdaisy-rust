@@ -81,11 +81,8 @@ const APP: () = {
         let led1 = ctx.resources.led1;
         let control1 = ctx.resources.control1;
 
-        match adc1.read(&mut control1.pin) {
-            Ok(data) => {
-                control1.update(data);
-            }
-            Err(_) => {}
+        if let Ok(data) = adc1.read(control1.get_pin()) {
+            control1.update(data);
         }
 
         led1.set_brightness(control1.get_value());

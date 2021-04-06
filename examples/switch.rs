@@ -1,4 +1,4 @@
-//! examples/toggle.rs
+//! examples/switch.rs
 #![no_main]
 #![no_std]
 use log::info;

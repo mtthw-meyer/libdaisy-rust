@@ -13,7 +13,6 @@ use libdaisy_rust::gpio::*;
 use libdaisy_rust::hid;
 use libdaisy_rust::prelude::*;
 use libdaisy_rust::system;
-use stm32h7xx_hal::time::Hertz;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -22,9 +21,9 @@ use stm32h7xx_hal::time::Hertz;
 )]
 const APP: () = {
     struct Resources {
-        led1: hid::Led<Daisy28<Output<PushPull>>>,
+        led1: hid::Led<SeedLed>,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
-        control1: hid::AnalogControl<Daisy21<Analog>>,
+        control1: hid::AnalogControl<Daisy15<Analog>>,
         timer2: Timer<stm32::TIM2>,
     }
 
@@ -33,32 +32,23 @@ const APP: () = {
         logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
 
-        let duty_cycle = 50;
-        let resolution = 20;
+        system.timer2.set_freq(1.ms());
 
-        system.timer2.set_freq(Hertz(duty_cycle * resolution));
-
-        let daisy28 = system
-            .gpio
-            .daisy28
-            .take()
-            .expect("Failed to get pin 28!")
-            .into_push_pull_output();
-
-        let led1 = hid::Led::new(daisy28, false, resolution);
+        let mut led1 = hid::Led::new(system.gpio.led, false, 1000);
+        led1.set_brightness(0.5);
 
         let mut adc1 = system.adc1.enable();
         adc1.set_resolution(adc::Resolution::SIXTEENBIT);
         let adc1_max = adc1.max_sample() as f32;
 
-        let daisy21 = system
+        let daisy15 = system
             .gpio
-            .daisy21
+            .daisy15
             .take()
-            .expect("Failed to get pin 21!")
+            .expect("Failed to get pin daisy15!")
             .into_analog();
 
-        let control1 = hid::AnalogControl::new(daisy21, adc1_max);
+        let control1 = hid::AnalogControl::new(daisy15, adc1_max);
 
         init::LateResources {
             led1,
@@ -86,8 +76,9 @@ const APP: () = {
             control1.update(data);
         }
 
-        led1.set_brightness(control1.get_value());
-        info!("{}", control1.get_value());
+        let value = control1.get_value();
+        led1.set_blink(value, 1.0 - value);
+        info!("{} {}", value, 1.0 - value);
         led1.update();
     }
 };

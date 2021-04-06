@@ -199,6 +199,11 @@ impl<T> AnalogControl<T> {
     }
 }
 
+pub enum BlinkStatus {
+    Disabled,
+    On,
+    Off,
+}
 pub struct Led<T> {
     pin: T,
     /// inverts the brightness level
@@ -210,7 +215,7 @@ pub struct Led<T> {
     blink_on: Option<u32>,
     blink_off: Option<u32>,
     blink_counter: u32,
-    blink_status_on: bool,
+    blink_status: BlinkStatus,
 }
 
 impl<T> Led<T>
@@ -227,7 +232,7 @@ where
             blink_on: None,
             blink_off: None,
             blink_counter: 0,
-            blink_status_on: false,
+            blink_status: BlinkStatus::Disabled,
         }
     }
 
@@ -247,52 +252,57 @@ where
         }
     }
 
-    pub fn set_blink(&mut self, blink_on: u32, blink_off: u32) {
-        self.blink_on = Some(blink_on);
-        self.blink_off = Some(blink_off);
-        self.blink_counter = 0;
+    pub fn set_blink(&mut self, blink_on: f32, blink_off: f32) {
+        self.blink_on = Some((blink_on * self.resolution as f32) as u32);
+        self.blink_off = Some((blink_off * self.resolution as f32) as u32);
     }
 
     pub fn clear_blink(&mut self) {
         self.blink_on = None;
         self.blink_off = None;
+        self.blink_status = BlinkStatus::Disabled;
     }
 
     pub fn update(&mut self) {
+        // Calculate blink status
+        if let (Some(blink_on), Some(blink_off)) = (self.blink_on, self.blink_off) {
+            self.blink_counter += 1;
+            self.blink_status = match self.blink_status {
+                BlinkStatus::On => {
+                    if self.blink_counter > blink_on {
+                        self.blink_counter = 0;
+                        BlinkStatus::Off
+                    } else {
+                        BlinkStatus::On
+                    }
+                }
+                BlinkStatus::Off => {
+                    if self.blink_counter > blink_off {
+                        self.blink_counter = 0;
+                        BlinkStatus::On
+                    } else {
+                        BlinkStatus::Off
+                    }
+                }
+                BlinkStatus::Disabled => BlinkStatus::On,
+            };
+        };
+
         self.pwm += 1.0 / self.resolution as f32;
         if self.pwm > 1.0 {
             self.pwm -= 1.0;
         }
 
-        if self.brightness > self.pwm {
-            match self.invert {
-                true => self.pin.set_low(),
-                false => self.pin.set_high(),
-            }
-            .ok()
-            .unwrap();
+        let is_bright = if self.brightness > self.pwm {
+            true
         } else {
-            match self.invert {
-                true => self.pin.set_high(),
-                false => self.pin.set_low(),
-            }
-            .ok()
-            .unwrap();
-        }
-
-        if let (Some(blink_on), Some(blink_off)) = (self.blink_on, self.blink_off) {
-            self.blink_counter += 1;
-            let threshold = if self.blink_status_on {
-                blink_on
-            } else {
-                blink_off
-            };
-
-            if self.blink_counter > threshold {
-                self.blink_status_on = !self.blink_status_on;
-                self.blink_counter = 0;
-                if (self.blink_status_on && !self.invert) || (!self.blink_status_on && self.invert)
-                {
+            false
+        };
+        match self.blink_status {
+            BlinkStatus::On => self.pin.set_high().ok().unwrap(),
+            BlinkStatus::Off => self.pin.set_low().ok().unwrap(),
+            BlinkStatus::Disabled => {
+                if (is_bright && !self.invert) || (!is_bright && self.invert) {
                     self.pin.set_high().ok().unwrap();
                 } else {
                     self.pin.set_low().ok().unwrap();

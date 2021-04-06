@@ -42,6 +42,7 @@ pub type SeedLed = PC7<Output<PushPull>>;
 
 use crate::*;
 
+#[allow(clippy::upper_case_acronyms)]
 pub struct GPIO {
     pub led: SeedLed,
     codec: gpio::gpiob::PB11<Output<PushPull>>,

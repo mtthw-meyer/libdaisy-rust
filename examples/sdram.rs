@@ -3,14 +3,14 @@
 #![no_std]
 use log::info;
 // Includes a panic handler and optional logging facilities
-use libdaisy_rust::logger;
+use libdaisy::logger;
 
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::timer::Timer;
 
-use libdaisy_rust::gpio::*;
-use libdaisy_rust::prelude::*;
-use libdaisy_rust::system;
+use libdaisy::gpio::*;
+use libdaisy::prelude::*;
+use libdaisy::system;
 
 use micromath::F32Ext;
 
@@ -44,26 +44,26 @@ const APP: () = {
 
         // Make sure that we're not reading memory from a previous test run
         info!("Clear memory...");
-        for a in 0..sdram_size {
-            sdram[a] = 0.0;
+        for item in sdram.iter_mut().take(sdram_size) {
+            *item = 0.0;
         }
 
         info!("Write test pattern...");
         let mut data: f32 = 0.0;
-        for a in 0..sdram_size {
-            sdram[a] = data;
+        for item in sdram.iter_mut().take(sdram_size) {
+            *item = data;
             data = (data + 1.0) % core::f32::MAX;
         }
 
         info!("Read test pattern...");
         let percent = (sdram_size as f64 / 100.0) as f32;
         data = 0.0;
-        for a in 0..sdram_size {
-            assert!((sdram[a] - data).abs() < f32::EPSILON);
+        for (i, item) in sdram.iter_mut().enumerate().take(sdram_size) {
+            assert!((*item - data).abs() < f32::EPSILON);
             data = (data + 1.0) % core::f32::MAX;
 
-            if (a as f32 % (10.0 * percent)) == 0.0 {
-                info!("{}% done", a as f32 / percent);
+            if (i as f32 % (10.0 * percent)) == 0.0 {
+                info!("{}% done", i as f32 / percent);
             }
         }
         info!("Test Success!");

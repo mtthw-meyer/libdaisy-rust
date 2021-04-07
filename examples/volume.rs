@@ -10,13 +10,13 @@ use stm32h7xx_hal::adc;
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::timer::Timer;
 
-use libdaisy_rust::audio;
-use libdaisy_rust::gpio::*;
-use libdaisy_rust::hid;
-use libdaisy_rust::logger;
-use libdaisy_rust::prelude::*;
-use libdaisy_rust::system;
-use libdaisy_rust::MILICYCLES;
+use libdaisy::audio;
+use libdaisy::gpio::*;
+use libdaisy::hid;
+use libdaisy::logger;
+use libdaisy::prelude::*;
+use libdaisy::system;
+use libdaisy::MILICYCLES;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -78,11 +78,10 @@ const APP: () = {
         let audio = ctx.resources.audio;
         let buffer = ctx.resources.buffer;
 
-        // audio.passthru();
         if audio.get_stereo(buffer) {
             for (left, right) in buffer {
-                let mut volume = ctx.resources.control1.get_value();
-                volume *= volume;
+                let volume = ctx.resources.control1.get_value();
+                info!("{}", volume);
                 *left *= volume;
                 *right *= volume;
                 audio.push_stereo((*left, *right)).unwrap();
@@ -96,12 +95,10 @@ const APP: () = {
         let adc1 = ctx.resources.adc1;
 
         // Lower priority task(s) need to lock the resource.
-        let mut data = 0;
-        let mut val: f32 = 0.0;
         ctx.resources.control1.lock(|control1| {
-            data = adc1.read(&mut control1.pin).unwrap();
-            control1.update(data);
-            val = control1.get_value();
+            if let Ok(data) = adc1.read(control1.get_pin()) {
+                control1.update(data);
+            };
         });
     }
 };

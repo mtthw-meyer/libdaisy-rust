@@ -1,4 +1,6 @@
-# libdaisy-rust
+# [Documentation](https://docs.rs/libdaisy)
+
+# libdaisy
 Hardware Abstraction Layer implementation for Daisy boards.
 
 ## Requirements
@@ -13,20 +15,23 @@ $ cargo install cargo-binutils
 
 $ rustup component add llvm-tools-preview
 ```
-Some flashing utility such as
+# A Flashing Utility
 * [Electro-smith web programmer](https://electro-smith.github.io/Programmer/)
 
 OR
 
 * [dfu-util](http://dfu-util.sourceforge.net/)
 
-## Optional
-* Other flashing tools such as [Probe.rs](https://probe.rs/)
+OR
+
+* [Probe.rs](https://probe.rs/)
+
+This requires a debug probe of some sort (e.g. ST link) and allows for fast debugging messages via RTT.
+
+cargo embed --features log-rtt --example passthru
 
 ## Build Examples
 cargo objcopy --example blinky --release -- -O binary blinky.bin
-
-cargo objcopy --example toggle --release -- -O binary toggle.bin
 
 cargo objcopy --example passthru --release -- -O binary passthru.bin
 

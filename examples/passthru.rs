@@ -3,9 +3,9 @@
 #![no_std]
 use log::info;
 
-use libdaisy_rust::audio;
-use libdaisy_rust::logger;
-use libdaisy_rust::system;
+use libdaisy::audio;
+use libdaisy::logger;
+use libdaisy::system;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,

@@ -1,3 +1,4 @@
+//! Contains setup for Daisy board hardware.
 #![allow(dead_code)]
 // #![allow(unused_variables)]
 
@@ -214,23 +215,6 @@ impl System {
                 sdram_size_bytes / mem::size_of::<u32>(),
             )
         };
-
-        // TODO - QSPI
-        // info!("Setting up QSPI...");
-        /*
-            dsy_gpio_pin *pin_group;
-            qspi_handle.device = DSY_QSPI_DEVICE_IS25LP064A;
-            qspi_handle.mode   = DSY_QSPI_MODE_DSY_MEMORY_MAPPED;
-            pin_group          = qspi_handle.pin_config;
-
-            pin_group[DSY_QSPI_PIN_IO0] = dsy_pin(DSY_GPIOF, 8);
-            pin_group[DSY_QSPI_PIN_IO1] = dsy_pin(DSY_GPIOF, 9);
-            pin_group[DSY_QSPI_PIN_IO2] = dsy_pin(DSY_GPIOF, 7);
-            pin_group[DSY_QSPI_PIN_IO3] = dsy_pin(DSY_GPIOF, 6);
-            pin_group[DSY_QSPI_PIN_CLK] = dsy_pin(DSY_GPIOF, 10);
-            pin_group[DSY_QSPI_PIN_NCS] =
-            dsy_pin(DSY_GPIOG, 6);
-        */
 
         info!("Setup up DMA...");
         const DMA_MEM_SIZE: usize = 32 * 1024;

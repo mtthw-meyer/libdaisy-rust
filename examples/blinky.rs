@@ -1,16 +1,16 @@
-//! examples/blinky2.rs
+//! examples/blinky.rs
 #![no_main]
 #![no_std]
 use log::info;
 // Includes a panic handler and optional logging facilities
-use libdaisy_rust::logger;
+use libdaisy::logger;
 
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::timer::Timer;
 
-use libdaisy_rust::gpio;
-use libdaisy_rust::prelude::*;
-use libdaisy_rust::system;
+use libdaisy::gpio;
+use libdaisy::prelude::*;
+use libdaisy::system;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,

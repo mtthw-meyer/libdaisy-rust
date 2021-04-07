@@ -1,3 +1,4 @@
+//! Logger modules provides optional setup routines for several logging methods
 cfg_if::cfg_if! {
     if #[cfg(any(feature = "log-itm"))] {
         use panic_itm as _;
@@ -21,6 +22,7 @@ cfg_if::cfg_if! {
             };
         }
 
+        /// Initialize logging via ITM
         pub fn init() {
             cortex_m_log::log::init(&LOGGER).unwrap();
         }
@@ -40,6 +42,7 @@ cfg_if::cfg_if! {
             level: Level::Info,
         };
 
+        /// Initialize logging via RTT
         pub fn init() {
             rtt_init_print!();
             log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
@@ -77,12 +80,14 @@ cfg_if::cfg_if! {
             };
         }
 
+        /// Initialize logging via semihosting
         pub fn init() {
             cortex_m_log::log::init(&LOGGER).unwrap();
         }
     }
     else {
         use panic_halt as _;
+        /// Initialize logging if feature is enabled, otherwise does nothing
         pub fn init() {}
     }
 }

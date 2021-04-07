@@ -3,16 +3,16 @@
 #![no_std]
 use log::info;
 // Includes a panic handler and optional logging facilities
-use libdaisy_rust::logger;
+use libdaisy::logger;
 
 use stm32h7xx_hal::adc;
 use stm32h7xx_hal::stm32;
 use stm32h7xx_hal::timer::Timer;
 
-use libdaisy_rust::gpio::*;
-use libdaisy_rust::hid;
-use libdaisy_rust::prelude::*;
-use libdaisy_rust::system;
+use libdaisy::gpio::*;
+use libdaisy::hid;
+use libdaisy::prelude::*;
+use libdaisy::system;
 use stm32h7xx_hal::time::Hertz;
 
 #[rtic::app(

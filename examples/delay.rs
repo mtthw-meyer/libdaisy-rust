@@ -3,9 +3,9 @@
 #![no_std]
 use log::info;
 
-use libdaisy_rust::audio;
-use libdaisy_rust::logger;
-use libdaisy_rust::system;
+use libdaisy::audio;
+use libdaisy::logger;
+use libdaisy::system;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
@@ -60,7 +60,7 @@ const APP: () = {
                     .unwrap();
                 sdram[*index] = *left;
                 sdram[*index + 1] = *right;
-                *index = (*index + 2) % libdaisy_rust::AUDIO_SAMPLE_RATE;
+                *index = (*index + 2) % libdaisy::AUDIO_SAMPLE_RATE;
             }
         }
     }

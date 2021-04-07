@@ -36,7 +36,7 @@ where
     pub fn new(pin: T, switch_type: SwitchType) -> Self {
         Self {
             pin,
-            state: debounce_4(),
+            state: debounce_4(false),
             falling: false,
             rising: false,
             switch_type,

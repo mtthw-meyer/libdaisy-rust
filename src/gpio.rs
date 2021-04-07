@@ -1,3 +1,5 @@
+//! GPIO module. Contains pins by Daisy names.
+//! Provides access to the Seed LED and codec reset.
 use stm32h7xx_hal::gpio;
 use stm32h7xx_hal::gpio::gpioc::PC7;
 
@@ -42,6 +44,7 @@ pub type SeedLed = PC7<Output<PushPull>>;
 
 use crate::*;
 
+/// GPIO struct for holding Daisy GPIO pins
 #[allow(clippy::upper_case_acronyms)]
 pub struct GPIO {
     pub led: SeedLed,
@@ -80,6 +83,7 @@ pub struct GPIO {
 }
 
 impl GPIO {
+    /// Initialize the GPIOs
     pub fn init(
         seed_led: gpio::gpioc::PC7<Analog>,
         codec: gpio::gpiob::PB11<Analog>,
@@ -154,6 +158,7 @@ impl GPIO {
         }
     }
 
+    /// Reset the AK4556 codec chip
     pub fn reset_codec(&mut self) {
         self.codec.set_low().unwrap();
         delay_ms(5);

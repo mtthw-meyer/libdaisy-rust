@@ -1,4 +1,4 @@
-//! examples/knob.rs
+//! examples/hid_blinky.rs
 #![no_main]
 #![no_std]
 use log::info;

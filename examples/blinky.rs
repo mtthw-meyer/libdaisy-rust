@@ -1,4 +1,4 @@
-//! examples/blinky2.rs
+//! examples/blinky.rs
 #![no_main]
 #![no_std]
 use log::info;

@@ -1,4 +1,4 @@
-//! Interface abstractions for switches, potentiometer, etc.
+//! Interface abstractions for switches, potentiometers, etc.
 #[allow(unused_imports)]
 use stm32h7xx_hal::gpio::{Analog, Input, Output, PullDown, PullUp, PushPull};
 use stm32h7xx_hal::hal::digital::v2::{InputPin, OutputPin};
@@ -6,13 +6,24 @@ use stm32h7xx_hal::hal::digital::v2::{InputPin, OutputPin};
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
 use micromath::F32Ext;
 
+/// Define the types for a transformation function for AnalogControl
 pub type TransformFn = fn(f32) -> f32;
 
+/// If the switch is a pull-up or pull-down type
 pub enum SwitchType {
     PullUp,
     PullDown,
 }
 
+/// LED blink status
+pub enum BlinkStatus {
+    Disabled,
+    On,
+    Off,
+}
+
+/// Process state information from a 2 state switch.
+/// [Debouncr](https://github.com/dbrgn/debouncr/) with a 4 sample array is used for debouncing.
 pub struct Switch<T> {
     pin: T,
     state: Debouncer<u8, Repeat4>,
@@ -33,6 +44,7 @@ where
     T: InputPin,
     <T as InputPin>::Error: core::fmt::Debug,
 {
+    /// Create a new Switch.
     pub fn new(pin: T, switch_type: SwitchType) -> Self {
         Self {
             pin,
@@ -50,7 +62,7 @@ where
         }
     }
 
-    /// Set the threshold in number of calls to update
+    /// Set the threshold in number of calls to update.
     pub fn set_held_thresh(&mut self, held_threshold: Option<u32>) {
         self.held_threshold = if let Some(held_threshold) = held_threshold {
             Some(held_threshold)
@@ -59,7 +71,7 @@ where
         };
     }
 
-    /// Set the threshold in number of calls to update
+    /// Set the threshold in number of calls to update.
     pub fn set_double_thresh(&mut self, double_threshold: Option<u32>) {
         self.double_threshold = if let Some(double_threshold) = double_threshold {
             Some(double_threshold)
@@ -68,6 +80,7 @@ where
         };
     }
 
+    /// Read the state of the switch and update status. This should be called on a timer.
     pub fn update(&mut self) {
         let is_pressed = self.is_pressed();
 
@@ -115,14 +128,17 @@ where
         }
     }
 
+    /// If the switch state is high
     pub fn is_high(&self) -> bool {
         self.state.is_high()
     }
 
+    /// If the switch state is low
     pub fn is_low(&self) -> bool {
         self.state.is_low()
     }
 
+    /// If the switch is pressed
     pub fn is_pressed(&self) -> bool {
         match self.switch_type {
             SwitchType::PullUp => self.pin.is_low().unwrap(),
@@ -130,14 +146,17 @@ where
         }
     }
 
+    /// If the switch is rising
     pub fn is_rising(&self) -> bool {
         self.rising
     }
 
+    /// If the switch is falling
     pub fn is_falling(&self) -> bool {
         self.falling
     }
 
+    /// If the switch is being held
     pub fn is_held(&self) -> bool {
         if let Some(held_threshold) = self.held_threshold {
             return self.falling && self.held_counter >= held_threshold;
@@ -145,6 +164,7 @@ where
         false
     }
 
+    /// If the switch pressed twice inside the provided threshold
     pub fn is_double(&self) -> bool {
         self.double_press
     }
@@ -153,6 +173,7 @@ where
 const ANALOG_ARR_SIZE: usize = 4;
 const ANALOG_ARR_SIZE_F32: f32 = ANALOG_ARR_SIZE as f32;
 
+/// Contains the state of an analog control (e.g. a potentiometer).
 pub struct AnalogControl<T> {
     state: [f32; ANALOG_ARR_SIZE],
     scale: f32,
@@ -162,6 +183,7 @@ pub struct AnalogControl<T> {
 }
 
 impl<T> AnalogControl<T> {
+    /// Create a new AnalogControl.
     pub fn new(pin: T, scale: f32) -> Self {
         Self {
             state: [0.0; ANALOG_ARR_SIZE],
@@ -172,19 +194,40 @@ impl<T> AnalogControl<T> {
         }
     }
 
+    /// Set the scaling
     pub fn set_scale(&mut self, scale: f32) {
         self.scale = scale;
     }
 
+    /// Provide an optional transformation function.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// // Transform linear input into logarithmic
+    ///let mut control1 = hid::AnalogControl::new(daisy15, adc1_max);
+    ///control1.set_transform(|x| x * x);
+    ///```
     pub fn set_transform(&mut self, transform: TransformFn) {
         self.transform = Some(transform);
     }
 
+    /// Update control value. This should be called on a timer.
+    /// Typically you would read data from an ADC and supply it to this.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// if let Ok(data) = adc1.read(control1.get_pin()) {
+    ///    control1.update(data);
+    /// }
+    /// ```
     pub fn update(&mut self, value: u32) {
         self.state[self.index] = value as f32 / self.scale;
         self.index = (self.index + 1) % ANALOG_ARR_SIZE;
     }
 
+    /// Get the value of the control with any applied scaling and/or transformation.
     pub fn get_value(&self) -> f32 {
         let mut value = self.state.iter().sum();
         value /= ANALOG_ARR_SIZE_F32;
@@ -194,16 +237,13 @@ impl<T> AnalogControl<T> {
         value
     }
 
+    /// Get the pin associated with this control.
     pub fn get_pin(&mut self) -> &mut T {
         &mut self.pin
     }
 }
 
-pub enum BlinkStatus {
-    Disabled,
-    On,
-    Off,
-}
+/// Basic LED implementation with a PWM like functional. Does not implement PWM via hardware.
 pub struct Led<T> {
     pin: T,
     /// inverts the brightness level
@@ -222,6 +262,7 @@ impl<T> Led<T>
 where
     T: OutputPin,
 {
+    /// Create a new LED.
     pub fn new(pin: T, invert: bool, resolution: u32) -> Self {
         Self {
             pin,
@@ -236,6 +277,7 @@ where
         }
     }
 
+    /// Set the brightness of the LED from 0.0 to 1.0.
     pub fn set_brightness(&mut self, value: f32) {
         let value = if value > 1.0 {
             1.0
@@ -252,17 +294,21 @@ where
         }
     }
 
+    /// Enable blink functionality.
+    /// Times are in resolution multiplied by blink_on/blink_off.
     pub fn set_blink(&mut self, blink_on: f32, blink_off: f32) {
         self.blink_on = Some((blink_on * self.resolution as f32) as u32);
         self.blink_off = Some((blink_off * self.resolution as f32) as u32);
     }
 
+    /// Disable blink.
     pub fn clear_blink(&mut self) {
         self.blink_on = None;
         self.blink_off = None;
         self.blink_status = BlinkStatus::Disabled;
     }
 
+    /// Update LED status. This should be called on a timer.
     pub fn update(&mut self) {
         // Calculate blink status
         if let (Some(blink_on), Some(blink_off)) = (self.blink_on, self.blink_off) {

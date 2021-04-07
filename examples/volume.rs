@@ -80,9 +80,8 @@ const APP: () = {
 
         if audio.get_stereo(buffer) {
             for (left, right) in buffer {
-                let mut volume = ctx.resources.control1.get_value();
+                let volume = ctx.resources.control1.get_value();
                 info!("{}", volume);
-                volume *= volume;
                 *left *= volume;
                 *right *= volume;
                 audio.push_stereo((*left, *right)).unwrap();

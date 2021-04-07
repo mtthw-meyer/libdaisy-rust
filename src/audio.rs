@@ -1,5 +1,5 @@
-//! Audio module, handles audio startup and I/O
-//! As well as converting between the S24 input and f32 for processing
+//! Audio module. Handles audio startup and I/O.
+//! As well as converting between the S24 input and f32 for processing.
 use log::info;
 
 use stm32h7xx_hal::traits::i2s::FullDuplex;
@@ -7,12 +7,12 @@ use stm32h7xx_hal::{dma, sai, sai::*, stm32};
 
 use crate::system::{DmaBuffer, BLOCK_SIZE_MAX, DMA_BUFFER_SIZE};
 
-// use core::marker::PhantomData;
 const FBIPMAX: f32 = 0.999985;
 const FBIPMIN: f32 = -FBIPMAX;
 const F32_TO_S24_SCALE: f32 = 8388608.0; // 2 ** 23
 const S24_TO_F32_SCALE: f32 = 1.0 / F32_TO_S24_SCALE;
 const S24_SIGN: i32 = 0x800000;
+/// Largest number of audio blocks for a single DMA operation
 pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
 pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
@@ -36,7 +36,7 @@ type DmaOutputStream = dma::Transfer<
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct S24(pub i32);
+struct S24(i32);
 
 impl From<i32> for S24 {
     fn from(x: i32) -> S24 {
@@ -81,6 +81,7 @@ impl From<S24> for f32 {
     }
 }
 
+/// Core struct for handling audio I/O
 pub struct Audio {
     sai: sai::Sai<stm32::SAI1, sai::I2S>,
     input: Input,
@@ -90,6 +91,7 @@ pub struct Audio {
 }
 
 impl Audio {
+    /// Used to initialize the audio struct
     pub fn new(
         mut sai: sai::Sai<stm32::SAI1, sai::I2S>,
         mut input_stream: DmaInputStream,
@@ -126,6 +128,7 @@ impl Audio {
         }
     }
 
+    /// Check interrupts and set indexes for I/O
     fn read(&mut self) -> bool {
         // Check interrupt(s)
         if self.input_stream.get_half_transfer_flag() {
@@ -143,7 +146,7 @@ impl Audio {
         }
     }
 
-    /// This shouldn't be needed but left in for having the option
+    /// Directly pass received audio to output without any processing.
     pub fn passthru(&mut self) {
         // Copy data
         if self.read() {
@@ -158,6 +161,7 @@ impl Audio {
         }
     }
 
+    /// Gets the audio input from the DMA memory and writes it to buffer
     pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
             for (i, (left, right)) in StereoIterator::new(
@@ -182,12 +186,14 @@ impl Audio {
         None
     }
 
+    /// Push data to the DMA buffer for output
+    /// Call this once per sample per call to [get_stereo()](Audio#get_stereo)
     pub fn push_stereo(&mut self, data: (f32, f32)) -> Result<(), ()> {
         self.output.push(data)
     }
 }
 
-pub struct Input {
+struct Input {
     index: usize,
     buffer: &'static DmaBuffer,
 }
@@ -208,7 +214,7 @@ impl Input {
     }
 }
 
-pub struct Output {
+struct Output {
     index: usize,
     buffer: &'static mut DmaBuffer,
 }
@@ -234,7 +240,7 @@ impl Output {
     }
 }
 
-pub struct StereoIterator<'a> {
+struct StereoIterator<'a> {
     index: usize,
     buf: &'a [u32],
 }
@@ -261,7 +267,7 @@ impl Iterator for StereoIterator<'_> {
     }
 }
 
-pub struct Mono<'a> {
+struct Mono<'a> {
     index: usize,
     buf: &'a [i32],
 }

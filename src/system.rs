@@ -1,3 +1,4 @@
+//! Contains setup for Daisy board hardware.
 #![allow(dead_code)]
 // #![allow(unused_variables)]
 

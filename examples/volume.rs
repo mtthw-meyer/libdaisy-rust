@@ -36,7 +36,7 @@ const APP: () = {
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
-        let buffer = [(0.0, 0.0); system::BLOCK_SIZE_MAX];
+        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();

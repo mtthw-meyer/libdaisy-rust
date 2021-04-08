@@ -2,7 +2,6 @@
 //! As well as converting between the S24 input and f32 for processing.
 use log::info;
 
-use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
 use stm32h7xx_hal::{
     dma,
     gpio::{gpioe, Analog},
@@ -11,6 +10,7 @@ use stm32h7xx_hal::{
     sai,
     sai::*,
     stm32,
+    stm32::rcc::d2ccip1r::SAI1SEL_A,
     traits::i2s::FullDuplex,
 };
 

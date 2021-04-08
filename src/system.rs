@@ -4,18 +4,9 @@
 
 use log::info;
 
-use stm32h7xx_hal::adc;
-use stm32h7xx_hal::delay::Delay;
-use stm32h7xx_hal::dma;
-use stm32h7xx_hal::pac;
-use stm32h7xx_hal::prelude::*;
-use stm32h7xx_hal::rcc;
-use stm32h7xx_hal::sai::*;
-use stm32h7xx_hal::stm32;
-use stm32h7xx_hal::stm32::rcc::d2ccip1r::SAI1SEL_A;
-use stm32h7xx_hal::stm32::TIM2;
-use stm32h7xx_hal::timer::Event;
-use stm32h7xx_hal::timer::Timer;
+use stm32h7xx_hal::{
+    adc, delay::Delay, prelude::*, rcc, stm32, stm32::TIM2, timer::Event, timer::Timer,
+};
 
 use crate::audio::Audio;
 use crate::*;
@@ -94,6 +85,7 @@ impl System {
         dwt.enable_cycle_counter();
     }
 
+    /// Batteries included initialization
     pub fn init(mut core: rtic::export::Peripherals, device: stm32::Peripherals) -> System {
         info!("Starting system init");
         let mut ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
@@ -202,7 +194,7 @@ impl System {
         )
         .into();
 
-        info!("Setup up DMA...");
+        info!("Setup up Audio...");
         let audio = Audio::init(
             device.DMA1,
             ccdr.peripheral.DMA1,

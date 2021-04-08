@@ -10,8 +10,6 @@ version = "0.1.0"
 [dependencies]
 cfg-if = "0.1.10"
 cortex-m = "0.6.2"
-cortex-m-rt = "0.6.12"
-cortex-m-rtic = "0.5.6"
 debouncr = "0.2.2"
 log = "0.4.11"
 micromath = "1.1.1"
@@ -25,6 +23,10 @@ cortex-m-log = { version = "~0.7", features = ["itm", "semihosting", "log-integr
 panic-itm = { version = "~0.4.2", optional = true  }
 panic-semihosting = { version = "0.5.6", optional = true  }
 cortex-m-semihosting = { version = "0.3.7", optional = true  }
+
+[dev-dependencies]
+cortex-m-rt = "0.6.12"
+cortex-m-rtic = "0.5.6"
 
 [features]
 default = []

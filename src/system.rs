@@ -196,7 +196,7 @@ impl System {
         .into();
 
         info!("Setup up Audio...");
-        let audio = Audio::init(
+        let audio = Audio::new(
             device.DMA1,
             ccdr.peripheral.DMA1,
             device.SAI1,

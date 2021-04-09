@@ -116,7 +116,7 @@ pub struct Audio {
 
 impl Audio {
     /// Setup audio handler
-    pub fn init(
+    pub fn new(
         dma1_d: stm32::DMA1,
         dma1_p: rec::Dma1,
         sai1_d: stm32::SAI1,
@@ -145,26 +145,28 @@ impl Audio {
             .peripheral_increment(false)
             .circular_buffer(true)
             .fifo_enable(false);
-        let dma1_str0: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> = dma::Transfer::init(
-            dma1_streams.0,
-            unsafe { pac::Peripherals::steal().SAI1 },
-            tx_buffer,
-            None,
-            dma_config,
-        );
+        let mut output_stream: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> =
+            dma::Transfer::init(
+                dma1_streams.0,
+                unsafe { pac::Peripherals::steal().SAI1 },
+                tx_buffer,
+                None,
+                dma_config,
+            );
 
         // dma1 stream 1
         let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
-        let dma1_str1: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> = dma::Transfer::init(
-            dma1_streams.1,
-            unsafe { pac::Peripherals::steal().SAI1 },
-            rx_buffer,
-            None,
-            dma_config,
-        );
+        let mut input_stream: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> =
+            dma::Transfer::init(
+                dma1_streams.1,
+                unsafe { pac::Peripherals::steal().SAI1 },
+                rx_buffer,
+                None,
+                dma_config,
+            );
 
         info!("Setup up SAI...");
         let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::PLL3_P);
@@ -182,7 +184,7 @@ impl Audio {
         );
 
         // Hand off to audio module
-        let dev_audio = sai1_d.i2s_ch_a(
+        let mut sai = sai1_d.i2s_ch_a(
             pins_a,
             crate::AUDIO_SAMPLE_HZ,
             I2SDataSize::BITS_24,
@@ -191,25 +193,7 @@ impl Audio {
             master_config,
             Some(slave_config),
         );
-        unsafe {
-            Self::new(
-                dev_audio,
-                dma1_str1,
-                dma1_str0,
-                &mut RX_BUFFER,
-                &mut TX_BUFFER,
-            )
-        }
-    }
 
-    /// Used to initialize the audio struct
-    pub fn new(
-        mut sai: sai::Sai<stm32::SAI1, sai::I2S>,
-        mut input_stream: DmaInputStream,
-        mut output_stream: DmaOutputStream,
-        dma_input_buffer: &'static DmaBuffer,
-        dma_output_buffer: &'static mut DmaBuffer,
-    ) -> Self {
         input_stream.start(|_sai1_rb| {
             sai.enable_dma(SaiChannel::ChannelB);
         });
@@ -224,8 +208,8 @@ impl Audio {
             sai.enable();
             sai.try_send(0, 0).unwrap();
         });
-        let input = Input::new(dma_input_buffer);
-        let output = Output::new(dma_output_buffer);
+        let input = Input::new(unsafe { &mut RX_BUFFER });
+        let output = Output::new(unsafe { &mut TX_BUFFER });
         info!(
             "{:?}, {:?}",
             &input.buffer[0] as *const u32, &output.buffer[0] as *const u32

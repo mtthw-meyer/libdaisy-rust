@@ -34,7 +34,7 @@ const APP: () = {
 
         let sdram = system.sdram;
 
-        let sdram_size_bytes = 64 * 1024 * 1024;
+        let sdram_size_bytes = libdaisy::sdram::Sdram::bytes();
         let sdram_size = sdram_size_bytes / core::mem::size_of::<u32>();
 
         info!(

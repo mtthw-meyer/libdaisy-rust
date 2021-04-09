@@ -44,6 +44,7 @@ pub struct System {
 }
 
 impl System {
+    /// Initialize clocks
     pub fn init_clocks(pwr: stm32::PWR, rcc: stm32::RCC, syscfg: &stm32::SYSCFG) -> rcc::Ccdr {
         // Power
         let pwr = pwr.constrain();

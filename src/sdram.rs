@@ -1,3 +1,4 @@
+//! Sdram
 use stm32_fmc::devices::as4c16m32msa_6;
 use stm32h7xx_hal::{
     gpio::{gpiod, gpioe, gpiof, gpiog, gpioh, gpioi, Analog},
@@ -20,11 +21,13 @@ macro_rules! fmc_pins {
     };
 }
 
+/// Struct that owns the sdram
 pub struct Sdram {
     inner: *mut u32,
 }
 
 impl Sdram {
+    /// Initialize the sdram
     pub fn new<D: DelayUs<u8>>(
         fmc_d: stm32::FMC,
         fmc_p: rcc::rec::Fmc,

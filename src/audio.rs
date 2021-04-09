@@ -115,6 +115,7 @@ pub struct Audio {
 }
 
 impl Audio {
+    /// Setup audio handler
     pub fn init(
         dma1_d: stm32::DMA1,
         dma1_p: rec::Dma1,

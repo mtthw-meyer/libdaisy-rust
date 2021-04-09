@@ -54,6 +54,7 @@ fn log2minus1(sz: u32) -> u32 {
     panic!("Unknown memory region size!");
 }
 
+/// Setup MPU for dma
 pub fn dma_init(
     mpu: &mut cortex_m::peripheral::MPU,
     scb: &mut cortex_m::peripheral::SCB,
@@ -99,6 +100,7 @@ pub fn dma_init(
     enable(mpu, scb);
 }
 
+/// Setup MPU for the sdram
 pub fn sdram_init(
     mpu: &mut cortex_m::peripheral::MPU,
     scb: &mut cortex_m::peripheral::SCB,

@@ -25,7 +25,7 @@ const APP: () = {
     fn init(ctx: init::Context) -> init::LateResources {
         logger::init();
         let system = system::System::init(ctx.core, ctx.device);
-        let buffer = [(0.0, 0.0); system::BLOCK_SIZE_MAX];
+        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Startup done!");
 

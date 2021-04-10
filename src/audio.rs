@@ -2,10 +2,34 @@
 //! As well as converting between the S24 input and f32 for processing.
 use log::info;
 
-use stm32h7xx_hal::traits::i2s::FullDuplex;
-use stm32h7xx_hal::{dma, sai, sai::*, stm32};
+use stm32h7xx_hal::{
+    dma,
+    gpio::{gpioe, Analog},
+    pac, rcc,
+    rcc::rec,
+    sai,
+    sai::*,
+    stm32,
+    stm32::rcc::d2ccip1r::SAI1SEL_A,
+    traits::i2s::FullDuplex,
+};
 
-use crate::system::{DmaBuffer, BLOCK_SIZE_MAX, DMA_BUFFER_SIZE};
+// Process samples at 1000 Hz
+// With a circular buffer(*2) in stereo (*2)
+pub const BLOCK_SIZE_MAX: usize = 48;
+pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
+
+pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
+
+const START_OF_DRAM2: u32 = 0x30000000;
+const DMA_MEM_SIZE: usize = 32 * 1024;
+
+#[link_section = ".sram1_bss"]
+#[no_mangle]
+static mut TX_BUFFER: DmaBuffer = [0; DMA_BUFFER_SIZE];
+#[link_section = ".sram1_bss"]
+#[no_mangle]
+static mut RX_BUFFER: DmaBuffer = [0; DMA_BUFFER_SIZE];
 
 const FBIPMAX: f32 = 0.999985;
 const FBIPMIN: f32 = -FBIPMAX;
@@ -91,14 +115,85 @@ pub struct Audio {
 }
 
 impl Audio {
-    /// Used to initialize the audio struct
+    /// Setup audio handler
     pub fn new(
-        mut sai: sai::Sai<stm32::SAI1, sai::I2S>,
-        mut input_stream: DmaInputStream,
-        mut output_stream: DmaOutputStream,
-        dma_input_buffer: &'static DmaBuffer,
-        dma_output_buffer: &'static mut DmaBuffer,
+        dma1_d: stm32::DMA1,
+        dma1_p: rec::Dma1,
+        sai1_d: stm32::SAI1,
+        sai1_p: rec::Sai1,
+
+        pe2: gpioe::PE2<Analog>,
+        pe3: gpioe::PE3<Analog>,
+        pe4: gpioe::PE4<Analog>,
+        pe5: gpioe::PE5<Analog>,
+        pe6: gpioe::PE6<Analog>,
+
+        clocks: &rcc::CoreClocks,
+        mpu: &mut cortex_m::peripheral::MPU,
+        scb: &mut cortex_m::peripheral::SCB,
     ) -> Self {
+        info!("Setup up DMA...");
+        crate::mpu::dma_init(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
+
+        let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
+
+        // dma1 stream 0
+        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+        let dma_config = dma::dma::DmaConfig::default()
+            .priority(dma::config::Priority::High)
+            .memory_increment(true)
+            .peripheral_increment(false)
+            .circular_buffer(true)
+            .fifo_enable(false);
+        let mut output_stream: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> =
+            dma::Transfer::init(
+                dma1_streams.0,
+                unsafe { pac::Peripherals::steal().SAI1 },
+                tx_buffer,
+                None,
+                dma_config,
+            );
+
+        // dma1 stream 1
+        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+        let dma_config = dma_config
+            .transfer_complete_interrupt(true)
+            .half_transfer_interrupt(true);
+        let mut input_stream: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> =
+            dma::Transfer::init(
+                dma1_streams.1,
+                unsafe { pac::Peripherals::steal().SAI1 },
+                rx_buffer,
+                None,
+                dma_config,
+            );
+
+        info!("Setup up SAI...");
+        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
+        let slave_config = I2SChanConfig::new(I2SDir::Rx)
+            .set_sync_type(I2SSync::Internal)
+            .set_frame_sync_active_high(true);
+
+        let pins_a = (
+            pe2.into_alternate_af6(),       // MCLK_A
+            pe5.into_alternate_af6(),       // SCK_A
+            pe4.into_alternate_af6(),       // FS_A
+            pe6.into_alternate_af6(),       // SD_A
+            Some(pe3.into_alternate_af6()), // SD_B
+        );
+
+        // Hand off to audio module
+        let mut sai = sai1_d.i2s_ch_a(
+            pins_a,
+            crate::AUDIO_SAMPLE_HZ,
+            I2SDataSize::BITS_24,
+            sai1_rec,
+            clocks,
+            master_config,
+            Some(slave_config),
+        );
+
         input_stream.start(|_sai1_rb| {
             sai.enable_dma(SaiChannel::ChannelB);
         });
@@ -113,8 +208,8 @@ impl Audio {
             sai.enable();
             sai.try_send(0, 0).unwrap();
         });
-        let input = Input::new(dma_input_buffer);
-        let output = Output::new(dma_output_buffer);
+        let input = Input::new(unsafe { &mut RX_BUFFER });
+        let output = Output::new(unsafe { &mut TX_BUFFER });
         info!(
             "{:?}, {:?}",
             &input.buffer[0] as *const u32, &output.buffer[0] as *const u32

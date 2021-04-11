@@ -6,6 +6,10 @@ keywords = ["arm", "cortex-m", "stm32h7xx", "stm32h750", "hal", "embedded-hal", 
 readme = "README.md"
 name = "libdaisy"
 version = "0.1.0"
+license = "MIT"
+repository = "https://github.com/mtthw-meyer/libdaisy-rust.git"
+documentation = "https://docs.rs/libdaisy"
+exclude = [".gitignore"]
 
 [dependencies]
 cfg-if = "0.1.10"

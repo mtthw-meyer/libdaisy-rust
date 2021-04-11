@@ -36,3 +36,7 @@ cargo objcopy --example blinky --release -- -O binary blinky.bin
 cargo objcopy --example passthru --release -- -O binary passthru.bin
 
 [cargo-binutils-url]: https://github.com/rust-embedded/cargo-binutils
+
+# Demos
+
+[Looper](https://github.com/mtthw-meyer/daisy-looper) - Basic one button looper.

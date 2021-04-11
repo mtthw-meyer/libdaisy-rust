@@ -2,7 +2,7 @@
 authors = ["Matthew Meyer <mtthw.meyer@gmail.com>"]
 edition = "2018"
 description = "Hardware Abstraction Layer implementation for Daisy boards"
-keywords = ["arm", "cortex-m", "stm32h7xx", "stm32h750", "hal", "embedded-hal", "daisy"]
+keywords = ["cortex-m", "stm32h7xx", "stm32h750", "hal", "daisy"]
 readme = "README.md"
 name = "libdaisy"
 version = "0.1.0"

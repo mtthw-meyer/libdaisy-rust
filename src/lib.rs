@@ -26,6 +26,7 @@ pub mod logger;
 pub mod mpu;
 pub mod prelude;
 pub mod sdram;
+pub mod serial;
 pub mod system;
 
 // Delay for ms, note if interrupts are active delay time will extend

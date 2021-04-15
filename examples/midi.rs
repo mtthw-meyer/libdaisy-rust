@@ -3,9 +3,11 @@
 #![no_std]
 use log::info;
 
+use embedded_midi::{MidiMessage, MidiOut};
+
 use libdaisy::{gpio, prelude::*, system::System};
 use stm32h7xx_hal::{
-    block, stm32,
+    stm32,
     timer::{Event, Timer},
 };
 
@@ -35,7 +37,7 @@ const APP: () = {
     struct Resources {
         seed_led: gpio::SeedLed,
         timer2: Timer<stm32::TIM2>,
-        serial_tx: stm32h7xx_hal::serial::Tx<stm32h7xx_hal::stm32::USART1>,
+        midi_out: MidiOut<stm32h7xx_hal::serial::Tx<stm32h7xx_hal::stm32::USART1>>,
     }
 
     #[init]
@@ -108,11 +110,11 @@ const APP: () = {
         init::LateResources {
             seed_led: gpio.led,
             timer2,
-            serial_tx,
+            midi_out: MidiOut::new(serial_tx),
         }
     }
 
-    #[task(binds = TIM2, resources = [timer2, seed_led, serial_tx] )]
+    #[task(binds = TIM2, resources = [timer2, seed_led, midi_out] )]
     fn send(ctx: send::Context) {
         static mut NOTE: NoteState = NoteState::Idle;
         static mut NOTE_NUM: u8 = 0;
@@ -121,21 +123,29 @@ const APP: () = {
 
         *NOTE = NOTE.next();
 
+        let note = *NOTE_NUM;
+
         match NOTE {
             NoteState::On => {
-                block!(ctx.resources.serial_tx.write(0x90)).unwrap();
-                block!(ctx.resources.serial_tx.write(*NOTE_NUM)).unwrap();
-                block!(ctx.resources.serial_tx.write(0x40)).unwrap();
                 ctx.resources.seed_led.set_high().unwrap();
+                ctx.resources
+                    .midi_out
+                    .write(&MidiMessage::NoteOn(0u8.into(), note.into(), 0x40u8.into()))
+                    .unwrap();
             }
             NoteState::Off => {
                 ctx.resources.seed_led.set_low().unwrap();
-                block!(ctx.resources.serial_tx.write(0x80)).unwrap();
-                block!(ctx.resources.serial_tx.write(*NOTE_NUM)).unwrap();
-                block!(ctx.resources.serial_tx.write(0x40)).unwrap();
+                ctx.resources
+                    .midi_out
+                    .write(&MidiMessage::NoteOff(
+                        0u8.into(),
+                        note.into(),
+                        0x40u8.into(),
+                    ))
+                    .unwrap();
             }
             NoteState::Idle => {
-                *NOTE_NUM = (*NOTE_NUM + 1) & 0x7F;
+                *NOTE_NUM = (note + 1) & 0x7F;
             }
         };
     }

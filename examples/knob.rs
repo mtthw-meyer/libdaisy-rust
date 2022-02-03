@@ -1,27 +1,31 @@
 //! examples/knob.rs
 #![no_main]
 #![no_std]
-use log::info;
-// Includes a panic handler and optional logging facilities
-use libdaisy::logger;
-
-use stm32h7xx_hal::adc;
-use stm32h7xx_hal::stm32;
-use stm32h7xx_hal::timer::Timer;
-
-use libdaisy::gpio::*;
-use libdaisy::hid;
-use libdaisy::prelude::*;
-use libdaisy::system;
-use stm32h7xx_hal::time::Hertz;
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
     peripherals = true,
-    monotonic = rtic::cyccnt::CYCCNT,
 )]
-const APP: () = {
-    struct Resources {
+mod app {
+    use log::info;
+    // Includes a panic handler and optional logging facilities
+    use libdaisy::logger;
+
+    use stm32h7xx_hal::adc;
+    use stm32h7xx_hal::stm32;
+    use stm32h7xx_hal::timer::Timer;
+
+    use libdaisy::gpio::*;
+    use libdaisy::hid;
+    use libdaisy::prelude::*;
+    use libdaisy::system;
+    use stm32h7xx_hal::time::Hertz;
+
+    #[shared]
+    struct Shared {}
+
+    #[local]
+    struct Local {
         led1: hid::Led<Daisy28<Output<PushPull>>>,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
         control1: hid::AnalogControl<Daisy21<Analog>>,
@@ -29,7 +33,7 @@ const APP: () = {
     }
 
     #[init]
-    fn init(ctx: init::Context) -> init::LateResources {
+    fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
 
@@ -60,12 +64,16 @@ const APP: () = {
 
         let control1 = hid::AnalogControl::new(daisy21, adc1_max);
 
-        init::LateResources {
-            led1,
-            adc1,
-            control1,
-            timer2: system.timer2,
-        }
+        (
+            Shared {},
+            Local {
+                led1,
+                adc1,
+                control1,
+                timer2: system.timer2,
+            },
+            init::Monotonics(),
+        )
     }
 
     #[idle]
@@ -75,12 +83,12 @@ const APP: () = {
         }
     }
 
-    #[task( binds = TIM2, resources = [timer2, adc1, control1, led1] )]
+    #[task( binds = TIM2, local = [timer2, adc1, control1, led1] )]
     fn interface_handler(ctx: interface_handler::Context) {
-        ctx.resources.timer2.clear_irq();
-        let adc1 = ctx.resources.adc1;
-        let led1 = ctx.resources.led1;
-        let control1 = ctx.resources.control1;
+        ctx.local.timer2.clear_irq();
+        let adc1 = ctx.local.adc1;
+        let led1 = ctx.local.led1;
+        let control1 = ctx.local.control1;
 
         if let Ok(data) = adc1.read(control1.get_pin()) {
             control1.update(data);
@@ -90,4 +98,4 @@ const APP: () = {
         info!("{}", control1.get_value());
         led1.update();
     }
-};
+}

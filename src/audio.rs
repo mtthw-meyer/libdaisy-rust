@@ -190,8 +190,7 @@ impl Audio {
             I2SDataSize::BITS_24,
             sai1_rec,
             clocks,
-            master_config,
-            Some(slave_config),
+            I2sUsers::new(master_config).add_slave(slave_config),
         );
 
         input_stream.start(|_sai1_rb| {

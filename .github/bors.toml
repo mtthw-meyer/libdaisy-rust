@@ -2,9 +2,9 @@ block_labels = ["wip"]
 delete_merged_branches = true
 status = [
     "Rustfmt",
-    "ci (1.51.0, log-rtt)",
-    "ci (1.51.0, log-itm)",
-    "ci (1.51.0, log-semihosting)",
+    "ci (1.56.0, log-rtt)",
+    "ci (1.56.0, log-itm)",
+    "ci (1.56.0, log-semihosting)",
     "ci (stable, log-rtt)",
     "ci (stable, log-itm))",
     "ci (stable, log-semihosting)",

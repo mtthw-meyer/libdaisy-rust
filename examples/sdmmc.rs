@@ -9,6 +9,7 @@
 mod app {
     use log::info;
 
+    use embedded_sdmmc::{Controller, TimeSource, Timestamp, VolumeIdx};
     use libdaisy::{
         gpio,
         // Includes a panic handler and optional logging facilities
@@ -23,6 +24,21 @@ mod app {
 
     #[local]
     struct Local {}
+
+    struct FakeTime;
+
+    impl TimeSource for FakeTime {
+        fn get_timestamp(&self) -> Timestamp {
+            Timestamp {
+                year_since_1970: 52, //2022
+                zero_indexed_month: 0,
+                zero_indexed_day: 0,
+                hours: 0,
+                minutes: 0,
+                seconds: 1,
+            }
+        }
+    }
 
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
@@ -85,12 +101,27 @@ mod app {
             &mut ccdr.clocks,
         );
 
+        gpio.led.set_low().unwrap();
         if let Ok(_) = sd.init_card(50.mhz()) {
             info!("Got SD Card!");
-            gpio.led.set_high().unwrap();
+            let mut sd_fatfs = Controller::new(sd.sdmmc_block_device(), FakeTime);
+            if let Ok(sd_fatfs_volume) = sd_fatfs.get_volume(VolumeIdx(0)) {
+                if let Ok(sd_fatfs_root_dir) = sd_fatfs.open_root_dir(&sd_fatfs_volume) {
+                    sd_fatfs
+                        .iterate_dir(&sd_fatfs_volume, &sd_fatfs_root_dir, |entry| {
+                            info!("{:?}", entry);
+                        })
+                        .unwrap();
+                    sd_fatfs.close_dir(&sd_fatfs_volume, sd_fatfs_root_dir);
+                    gpio.led.set_high().unwrap();
+                } else {
+                    info!("Failed to get root dir");
+                }
+            } else {
+                info!("Failed to get volume 0");
+            }
         } else {
             info!("Failed to init SD Card");
-            gpio.led.set_low().unwrap();
         }
 
         (Shared {}, Local {}, init::Monotonics())

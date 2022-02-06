@@ -13,7 +13,7 @@ exclude = [".gitignore"]
 
 [dependencies]
 cfg-if = "0.1.10"
-cortex-m-rtic = "1"
+cortex-m-rtic = "1.0.0"
 cortex-m = "^0.7"
 debouncr = "0.2.2"
 log = "0.4.11"

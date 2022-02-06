@@ -41,6 +41,7 @@ pub struct System {
     pub adc2: adc::Adc<stm32::ADC2, adc::Disabled>,
     pub timer2: Timer<TIM2>,
     pub sdram: &'static mut [f32],
+    pub flash: crate::flash::Flash,
 }
 
 impl System {
@@ -49,6 +50,7 @@ impl System {
         // Power
         let pwr = pwr.constrain();
         let vos = pwr.vos0(syscfg).freeze();
+
         rcc.constrain()
             .use_hse(HSE_CLOCK_MHZ)
             .sys_ck(CLOCK_RATE_HZ)
@@ -253,6 +255,19 @@ impl System {
 
         info!("System init done!");
 
+        //setup flash
+        let flash = crate::flash::Flash::new(
+            device.QUADSPI,
+            ccdr.peripheral.QSPI,
+            &ccdr.clocks,
+            gpiof.pf6,
+            gpiof.pf7,
+            gpiof.pf8,
+            gpiof.pf9,
+            gpiof.pf10,
+            gpiog.pg6,
+        );
+
         System {
             gpio,
             audio,
@@ -262,6 +277,7 @@ impl System {
             adc2,
             timer2,
             sdram,
+            flash,
         }
     }
 }

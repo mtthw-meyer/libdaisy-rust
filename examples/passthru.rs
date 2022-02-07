@@ -1,35 +1,42 @@
 //! examples/passthru.rs
 #![no_main]
 #![no_std]
-use log::info;
-
-use libdaisy::audio;
-use libdaisy::logger;
-use libdaisy::system;
-
 #[rtic::app(
     device = stm32h7xx_hal::stm32,
     peripherals = true,
-    monotonic = rtic::cyccnt::CYCCNT,
 )]
-const APP: () = {
-    struct Resources {
+mod app {
+    use log::info;
+
+    use libdaisy::audio;
+    use libdaisy::logger;
+    use libdaisy::system;
+
+    #[shared]
+    struct Shared {}
+
+    #[local]
+    struct Local {
         audio: audio::Audio,
         buffer: audio::AudioBuffer,
     }
 
     #[init]
-    fn init(ctx: init::Context) -> init::LateResources {
+    fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
         let system = system::System::init(ctx.core, ctx.device);
         let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Startup done!");
 
-        init::LateResources {
-            audio: system.audio,
-            buffer,
-        }
+        (
+            Shared {},
+            Local {
+                audio: system.audio,
+                buffer,
+            },
+            init::Monotonics(),
+        )
     }
 
     // Non-default idle ensures chip doesn't go to sleep which causes issues for
@@ -42,10 +49,10 @@ const APP: () = {
     }
 
     // Interrupt handler for audio
-    #[task( binds = DMA1_STR1, resources = [audio, buffer], priority = 8 )]
+    #[task(binds = DMA1_STR1, local = [audio, buffer], priority = 8)]
     fn audio_handler(ctx: audio_handler::Context) {
-        let audio = ctx.resources.audio;
-        let buffer = ctx.resources.buffer;
+        let audio = ctx.local.audio;
+        let buffer = ctx.local.buffer;
 
         if audio.get_stereo(buffer) {
             for (left, right) in buffer {
@@ -55,4 +62,4 @@ const APP: () = {
             info!("Error reading data!");
         }
     }
-};
+}

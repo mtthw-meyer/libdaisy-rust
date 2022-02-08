@@ -32,18 +32,18 @@ SECTIONS
 		PROVIDE(__sram1_bss_end__ = _esram1_bss);
 	} > RAM_D2
 
-	.sdram_bss (NOLOAD) :
+	.sdram (NOLOAD) :
 	{
 		. = ALIGN(4);
 		_ssdram_bss = .;
 
-		PROVIDE(__sdram_bss_start = _ssdram_bss);
-		*(.sdram_bss)
-		*(.sdram_bss*)
+		PROVIDE(__sdram_start = _ssdram_bss);
+		*(.sdram)
+		*(.sdram*)
 		. = ALIGN(4);
-		_esdram_bss = .;
+		_esdram = .;
 
-		PROVIDE(__sdram_bss_end = _esdram_bss);
+		PROVIDE(__sdram_end = _esdram);
 	} > SDRAM
 
 

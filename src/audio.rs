@@ -204,8 +204,7 @@ impl Audio {
             I2SDataSize::BITS_24,
             sai1_rec,
             clocks,
-            master_config,
-            Some(slave_config),
+            I2sUsers::new(master_config).add_slave(slave_config),
         );
 
         if is_daisy_seed_rev_5(pd3) == true {

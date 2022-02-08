@@ -5,6 +5,11 @@ use crate::delay_ms;
 
 const W8731_ADDR: u8 = 0x1A;
 
+/**
+ * Initializes W8731 audio codec.
+ * Configuration is adapted from
+ * https://github.com/electro-smith/libDaisy/blob/3e200cbf3ef688edf184f30b648021deeeb0db22/src/dev/codec_wm8731.cpp#L88-L168
+ */
 pub fn init(i2c: I2c<I2C2>) {
     // Instantiate the driver with an i2c interface.
     // It also resets the codec.

@@ -20,22 +20,36 @@ debouncr = "0.2.2"
 log = "0.4.11"
 micromath = "1.1.1"
 panic-halt = "0.2.0"
-stm32h7xx-hal = { version = "0.9.0", features = ["stm32h750v","rt","fmc"] }
+stm32h7xx-hal = { version = "0.9.0", features = ["stm32h750v", "rt", "fmc"] }
 stm32-fmc = "0.2.2"
 rtt-target = { version = "0.3.0", features = ["cortex-m"], optional = true }
-panic-rtt-target = { version = "0.1.1", features = ["cortex-m"], optional = true }
-lazy_static = { version = "1.4.0", features = ["spin_no_std"], optional = true  }
-cortex-m-log = { version = "~0.7", features = ["itm", "semihosting", "log-integration"], optional = true  }
-panic-itm = { version = "~0.4.2", optional = true  }
-panic-semihosting = { version = "0.5.6", optional = true  }
-cortex-m-semihosting = { version = "0.3.7", optional = true  }
+panic-rtt-target = { version = "0.1.1", features = [
+    "cortex-m",
+], optional = true }
+lazy_static = { version = "1.4.0", features = ["spin_no_std"], optional = true }
+cortex-m-log = { version = "~0.7", features = [
+    "itm",
+    "semihosting",
+    "log-integration",
+], optional = true }
+panic-itm = { version = "~0.4.2", optional = true }
+panic-semihosting = { version = "0.5.6", optional = true }
+cortex-m-semihosting = { version = "0.3.7", optional = true }
+wm8731-alt = { git = "https://github.com/YruamaLairba/wm8731-alt", branch = "main" }
+wm8731 = "0.1.0"
+
 
 [features]
 default = []
 
 log-rtt = ["rtt-target", "panic-rtt-target"]
 log-itm = ["panic-itm", "lazy_static", "cortex-m-log"]
-log-semihosting = ["panic-semihosting", "lazy_static", "cortex-m-log", "cortex-m-semihosting"]
+log-semihosting = [
+    "panic-semihosting",
+    "lazy_static",
+    "cortex-m-log",
+    "cortex-m-semihosting",
+]
 
 # this lets you use `cargo fix`!
 #[[bin]]
@@ -44,13 +58,13 @@ log-semihosting = ["panic-semihosting", "lazy_static", "cortex-m-log", "cortex-m
 #bench = false
 
 [profile.dev]
-codegen-units = 1 # better optimizations
-debug = true # symbols are nice and they don't increase the size in flash
+codegen-units = 1   # better optimizations
+debug = true        # symbols are nice and they don't increase the size in flash
 incremental = false
-opt-level = "s" # optimize for binary size
+opt-level = "s"     # optimize for binary size
 
 [profile.release]
 codegen-units = 1 # better optimizations
-debug = true # symbols are nice and they don't increase the size in flash
-lto = true # better optimizations
-opt-level = "s" # optimize for binary size
+debug = true      # symbols are nice and they don't increase the size in flash
+lto = true        # better optimizations
+opt-level = "s"   # optimize for binary size

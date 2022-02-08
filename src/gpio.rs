@@ -6,7 +6,6 @@ use stm32h7xx_hal::gpio::gpioc::PC7;
 // use stm32h7xx_hal::hal::digital::v2::InputPin;
 #[allow(unused_imports)]
 use stm32h7xx_hal::gpio::{Alternate, Analog, Input, Output, PullUp, PushPull};
-use stm32h7xx_hal::hal::digital::v2::OutputPin;
 
 pub use gpio::gpioa::PA0 as Daisy25;
 pub use gpio::gpioa::PA1 as Daisy24;
@@ -42,13 +41,10 @@ pub use gpio::gpiog::PG9 as Daisy27;
 
 pub type SeedLed = PC7<Output<PushPull>>;
 
-use crate::*;
-
 /// GPIO struct for holding Daisy GPIO pins
 #[allow(clippy::upper_case_acronyms)]
 pub struct GPIO {
     pub led: SeedLed,
-    codec: gpio::gpiob::PB11<Output<PushPull>>,
     pub daisy0: Option<gpio::gpiob::PB12<Analog>>,
     pub daisy1: Option<gpio::gpioc::PC11<Analog>>,
     pub daisy2: Option<gpio::gpioc::PC10<Analog>>,
@@ -86,7 +82,6 @@ impl GPIO {
     /// Initialize the GPIOs
     pub fn init(
         seed_led: gpio::gpioc::PC7<Analog>,
-        codec: gpio::gpiob::PB11<Analog>,
         daisy0: Option<gpio::gpiob::PB12<Analog>>,
         daisy1: Option<gpio::gpioc::PC11<Analog>>,
         daisy2: Option<gpio::gpioc::PC10<Analog>>,
@@ -120,10 +115,8 @@ impl GPIO {
         daisy30: Option<gpio::gpiob::PB15<Analog>>,
     ) -> GPIO {
         let led = seed_led.into_push_pull_output();
-        let codec = codec.into_push_pull_output();
-        let mut gpio = Self {
+        let gpio = Self {
             led,
-            codec,
             daisy0,
             daisy1,
             daisy2,
@@ -156,14 +149,6 @@ impl GPIO {
             daisy29,
             daisy30,
         };
-        gpio.reset_codec();
         gpio
-    }
-
-    /// Reset the AK4556 codec chip
-    pub fn reset_codec(&mut self) {
-        self.codec.set_low().unwrap();
-        delay_ms(5);
-        self.codec.set_high().unwrap();
     }
 }

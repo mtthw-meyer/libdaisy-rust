@@ -4,8 +4,12 @@ use log::info;
 
 use stm32h7xx_hal::{
     dma,
-    gpio::{gpioe, Analog},
-    pac, rcc,
+    gpio::{gpiob, gpiod, gpioe, gpioh, Analog},
+    hal::digital::v2::InputPin,
+    i2c::I2cExt,
+    pac,
+    prelude::_stm32h7xx_hal_time_U32Ext,
+    rcc,
     rcc::rec,
     sai,
     sai::*,
@@ -13,6 +17,9 @@ use stm32h7xx_hal::{
     stm32::rcc::d2ccip1r::SAI1SEL_A,
     traits::i2s::FullDuplex,
 };
+
+use crate::codec_ak4556::init as init_ak4556_audio_codec;
+use crate::codec_wm8731::init as init_wm8731_audio_codec;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
@@ -41,6 +48,7 @@ pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
 pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
 
+// What we get from line in or mic.
 type DmaInputStream = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
     stm32::SAI1,
@@ -49,6 +57,7 @@ type DmaInputStream = dma::Transfer<
     dma::DBTransfer,
 >;
 
+// What we send to line out or headphones.
 type DmaOutputStream = dma::Transfer<
     dma::dma::Stream0<stm32::DMA1>,
     stm32::SAI1,
@@ -121,17 +130,21 @@ impl Audio {
         dma1_p: rec::Dma1,
         sai1_d: stm32::SAI1,
         sai1_p: rec::Sai1,
-
+        pd3: gpiod::PD3<Analog>,
         pe2: gpioe::PE2<Analog>,
         pe3: gpioe::PE3<Analog>,
         pe4: gpioe::PE4<Analog>,
         pe5: gpioe::PE5<Analog>,
         pe6: gpioe::PE6<Analog>,
-
+        ph4: gpioh::PH4<Analog>,
+        pb11: gpiob::PB11<Analog>,
+        i2c2_p: rec::I2c2,
         clocks: &rcc::CoreClocks,
         mpu: &mut cortex_m::peripheral::MPU,
         scb: &mut cortex_m::peripheral::SCB,
     ) -> Self {
+        let peripherals = unsafe { pac::Peripherals::steal() };
+
         info!("Setup up DMA...");
         crate::mpu::dma_init(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
 
@@ -159,10 +172,11 @@ impl Audio {
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
+
         let mut input_stream: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> =
             dma::Transfer::init(
                 dma1_streams.1,
-                unsafe { pac::Peripherals::steal().SAI1 },
+                peripherals.SAI1,
                 rx_buffer,
                 None,
                 dma_config,
@@ -193,6 +207,20 @@ impl Audio {
             master_config,
             Some(slave_config),
         );
+
+        if is_daisy_seed_rev_5(pd3) == true {
+            // Configure the SCL and the SDA pin for our I2C bus.
+            let scl = ph4.into_alternate_af4().set_open_drain();
+            let sda = pb11.into_alternate_af4().set_open_drain();
+
+            let i2c = peripherals
+                .I2C2
+                .i2c((scl, sda), 400_u32.khz(), i2c2_p, clocks);
+
+            init_wm8731_audio_codec(i2c);
+        } else {
+            init_ak4556_audio_codec(pb11);
+        }
 
         input_stream.start(|_sai1_rb| {
             sai.enable_dma(SaiChannel::ChannelB);
@@ -384,4 +412,14 @@ impl Iterator for Mono<'_> {
             None
         }
     }
+}
+
+/**
+ * Fall through is Daisy Seed v1 (aka Daisy Seed rev4)
+ * PD3 tied to gnd is Daisy Seed v1.1 (aka Daisy Seed rev5)
+ * PD4 tied to gnd reserved for future hardware
+ */
+fn is_daisy_seed_rev_5(pin: gpiod::PD3<Analog>) -> bool {
+    let pin = pin.into_pull_up_input();
+    pin.is_low().unwrap()
 }

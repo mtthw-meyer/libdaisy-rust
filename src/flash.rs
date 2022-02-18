@@ -3,15 +3,6 @@
 //! https://www.issi.com/WW/pdf/25LP032-64A-B.pdf
 //!
 
-// 133Mhz
-// bank 1
-//  pin_group[DSY_QSPI_PIN_IO0] = dsy_pin(DSY_GPIOF, 8);
-//  pin_group[DSY_QSPI_PIN_IO1] = dsy_pin(DSY_GPIOF, 9);
-//  pin_group[DSY_QSPI_PIN_IO2] = dsy_pin(DSY_GPIOF, 7);
-//  pin_group[DSY_QSPI_PIN_IO3] = dsy_pin(DSY_GPIOF, 6);
-//  pin_group[DSY_QSPI_PIN_CLK] = dsy_pin(DSY_GPIOF, 10);
-//  pin_group[DSY_QSPI_PIN_NCS] = dsy_pin(DSY_GPIOG, 6);
-
 use stm32h7xx_hal::{
     gpio::{gpiof, gpiog, Analog, Speed},
     nb::Error as nbError,

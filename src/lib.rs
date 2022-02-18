@@ -22,6 +22,7 @@ pub type FrameTimer = stm32h7xx_hal::timer::Timer<stm32h7xx_hal::stm32::TIM2>;
 pub use stm32h7xx_hal as hal;
 
 pub mod audio;
+pub mod flash;
 pub mod gpio;
 pub mod hid;
 pub mod logger;

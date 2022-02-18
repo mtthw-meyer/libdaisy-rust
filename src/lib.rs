@@ -19,15 +19,19 @@ pub const MILICYCLES: u32 = CLOCK_RATE_HZ.0 / MILLI;
 
 pub type FrameTimer = stm32h7xx_hal::timer::Timer<stm32h7xx_hal::stm32::TIM2>;
 
+pub use stm32h7xx_hal as hal;
+
 pub mod audio;
 pub mod board;
 pub mod codec_ak4556;
 pub mod codec_wm8731;
+pub mod flash;
 pub mod gpio;
 pub mod hid;
 pub mod logger;
 pub mod mpu;
 pub mod prelude;
+pub mod sdmmc;
 pub mod sdram;
 pub mod system;
 

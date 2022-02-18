@@ -3,6 +3,7 @@
 use log::info;
 
 use stm32h7xx_hal::{
+    device::SAI1,
     dma,
     gpio::{gpiob, gpiod, gpioe, gpioh, Analog},
     hal::digital::v2::InputPin,
@@ -18,8 +19,8 @@ use stm32h7xx_hal::{
     traits::i2s::FullDuplex,
 };
 
-use crate::codec_ak4556::init as init_ak4556_audio_codec;
-use crate::codec_wm8731::init as init_wm8731_audio_codec;
+use crate::{board::check_board_version, codec_ak4556::init as init_ak4556_audio_codec};
+use crate::{board::BoardVersion, codec_wm8731::init as init_wm8731_audio_codec};
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
@@ -112,6 +113,184 @@ impl From<S24> for f32 {
     }
 }
 
+/**
+ * Setup up SAI in either master transmit
+ * or master receive mode based on Daisy board version.
+ */
+fn setup_sai(
+    board_version: &BoardVersion,
+    sai1_d: stm32::SAI1,
+    sai1_p: rec::Sai1,
+    pe2: gpioe::PE2<Analog>,
+    pe3: gpioe::PE3<Analog>,
+    pe4: gpioe::PE4<Analog>,
+    pe5: gpioe::PE5<Analog>,
+    pe6: gpioe::PE6<Analog>,
+    clocks: &rcc::CoreClocks,
+    input_stream: &mut DmaInputStream,
+    output_stream: &mut DmaOutputStream,
+) -> Sai<SAI1, I2S> {
+    info!("Setup up SAI...");
+    let sai_pins_a = (
+        pe2.into_alternate_af6(),       // MCLK_A
+        pe5.into_alternate_af6(),       // SCK_A
+        pe4.into_alternate_af6(),       // FS_A
+        pe6.into_alternate_af6(),       // SD_A
+        Some(pe3.into_alternate_af6()), // SD_B
+    );
+
+    let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+    let mut sai: Sai<SAI1, I2S>;
+
+    match board_version {
+        BoardVersion::DaisySeed1_1 => {
+            let master_config = I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(true);
+            let slave_config = I2SChanConfig::new(I2SDir::Tx)
+                .set_sync_type(I2SSync::Internal)
+                .set_frame_sync_active_high(true);
+
+            // Hand off to audio module
+            sai = sai1_d.i2s_ch_a(
+                sai_pins_a,
+                crate::AUDIO_SAMPLE_HZ,
+                I2SDataSize::BITS_24,
+                sai1_rec,
+                clocks,
+                I2sUsers::new(master_config).add_slave(slave_config),
+            );
+
+            input_stream.start(|_sai1_rb| {
+                sai.enable_dma(SaiChannel::ChannelA);
+            });
+
+            output_stream.start(|sai1_rb| {
+                sai.enable_dma(SaiChannel::ChannelB);
+                /*
+                 * In Slave TX mode:
+                 * 1. Write into the SAI_xDR (by software or by DMA).
+                 * 2. Wait until the FIFO threshold (FLH) flag is different from 0b000 (FIFO empty).
+                 * 3. Enable the audio block in slave transmitter mode.
+                 */
+                sai1_rb.chb.dr.modify(|_, w| unsafe { w.bits(0b1) });
+                info!("Sai1 fifo waiting to receive data.");
+                while sai1_rb.chb.sr.read().flvl().is_empty() {}
+                info!("Audio started!");
+                sai.enable();
+            });
+        }
+        _ => {
+            let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
+            let slave_config = I2SChanConfig::new(I2SDir::Rx)
+                .set_sync_type(I2SSync::Internal)
+                .set_frame_sync_active_high(true);
+            sai = sai1_d.i2s_ch_a(
+                sai_pins_a,
+                crate::AUDIO_SAMPLE_HZ,
+                I2SDataSize::BITS_24,
+                sai1_rec,
+                clocks,
+                I2sUsers::new(master_config).add_slave(slave_config),
+            );
+
+            input_stream.start(|_sai1_rb| {
+                sai.enable_dma(SaiChannel::ChannelB);
+            });
+
+            output_stream.start(|sai1_rb| {
+                sai.enable_dma(SaiChannel::ChannelA);
+
+                // wait until sai1's fifo starts to receive data
+                info!("Sai1 fifo waiting to receive data.");
+                while sai1_rb.cha.sr.read().flvl().is_empty() {}
+                info!("Audio started!");
+                sai.enable();
+                sai.try_send(0, 0).unwrap();
+            });
+        }
+    };
+
+    sai
+}
+
+fn setup_dma(
+    dma1_d: stm32::DMA1,
+    dma1_p: rec::Dma1,
+    mpu: &mut cortex_m::peripheral::MPU,
+    scb: &mut cortex_m::peripheral::SCB,
+) -> (DmaInputStream, DmaOutputStream) {
+    info!("Setup up DMA...");
+    crate::mpu::dma_init(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
+
+    let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
+
+    /*
+     * Dma1 stream 0, transmits audio data from tx_buffer in memory
+     * to codec.
+     */
+    let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+    let dma_config = dma::dma::DmaConfig::default()
+        .priority(dma::config::Priority::High)
+        .memory_increment(true)
+        .peripheral_increment(false)
+        .circular_buffer(true)
+        .fifo_enable(false);
+    let output_stream: DmaOutputStream = dma::Transfer::init(
+        dma1_streams.0,
+        unsafe { pac::Peripherals::steal().SAI1 },
+        tx_buffer,
+        None,
+        dma_config,
+    );
+
+    /*
+     * Dma1 stream 1, receives audio data from codec
+     * and puts it to rx_buffer in memory.
+     */
+    let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+    let dma_config = dma_config
+        .transfer_complete_interrupt(true)
+        .half_transfer_interrupt(true);
+
+    let input_stream: DmaInputStream = dma::Transfer::init(
+        dma1_streams.1,
+        unsafe { pac::Peripherals::steal().SAI1 },
+        rx_buffer,
+        None,
+        dma_config,
+    );
+
+    (input_stream, output_stream)
+}
+
+fn setup_audio_codec(
+    board_version: &BoardVersion,
+    i2c2_p: rec::I2c2,
+    ph4: gpioh::PH4<Analog>,
+    pb11: gpiob::PB11<Analog>,
+    clocks: &rcc::CoreClocks,
+) {
+    match board_version {
+        BoardVersion::DaisySeed1_1 => {
+            info!("Setup WM8731 audio codec...");
+
+            // Configure the SCL and the SDA pin for our I2C bus.
+            let scl = ph4.into_alternate_af4().set_open_drain();
+            let sda = pb11.into_alternate_af4().set_open_drain();
+            let peripherals = unsafe { pac::Peripherals::steal() };
+            let i2c = peripherals
+                .I2C2
+                .i2c((scl, sda), 400_u32.khz(), i2c2_p, clocks);
+
+            init_wm8731_audio_codec(i2c);
+        }
+        _ => {
+            info!("Setup AK4556 audio codec...");
+
+            init_ak4556_audio_codec(pb11);
+        }
+    }
+}
+
 /// Core struct for handling audio I/O
 pub struct Audio {
     sai: sai::Sai<stm32::SAI1, sai::I2S>,
@@ -141,106 +320,35 @@ impl Audio {
         mpu: &mut cortex_m::peripheral::MPU,
         scb: &mut cortex_m::peripheral::SCB,
     ) -> Self {
-        if is_daisy_seed_rev_5(pd3) == true {
-            info!("Setup WM8731 audio codec...");
+        let (mut input_stream, mut output_stream): (DmaInputStream, DmaOutputStream) =
+            setup_dma(dma1_d, dma1_p, mpu, scb);
 
-            // Configure the SCL and the SDA pin for our I2C bus.
-            let scl = ph4.into_alternate_af4().set_open_drain();
-            let sda = pb11.into_alternate_af4().set_open_drain();
-            let peripherals = unsafe { pac::Peripherals::steal() };
-            let i2c = peripherals
-                .I2C2
-                .i2c((scl, sda), 400_u32.khz(), i2c2_p, clocks);
+        let board_version = check_board_version(pd3);
 
-            init_wm8731_audio_codec(i2c);
-        } else {
-            info!("Setup AK4556 audio codec...");
-
-            init_ak4556_audio_codec(pb11);
-        }
-
-        info!("Setup up DMA...");
-        crate::mpu::dma_init(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
-
-        let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
-
-        // dma1 stream 0
-        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
-        let dma_config = dma::dma::DmaConfig::default()
-            .priority(dma::config::Priority::High)
-            .memory_increment(true)
-            .peripheral_increment(false)
-            .circular_buffer(true)
-            .fifo_enable(false);
-        let mut output_stream: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> =
-            dma::Transfer::init(
-                dma1_streams.0,
-                unsafe { pac::Peripherals::steal().SAI1 },
-                tx_buffer,
-                None,
-                dma_config,
-            );
-
-        // dma1 stream 1
-        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
-        let dma_config = dma_config
-            .transfer_complete_interrupt(true)
-            .half_transfer_interrupt(true);
-
-        let mut input_stream: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> =
-            dma::Transfer::init(
-                dma1_streams.1,
-                unsafe { pac::Peripherals::steal().SAI1 },
-                rx_buffer,
-                None,
-                dma_config,
-            );
-
-        info!("Setup up SAI...");
-        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::PLL3_P);
-        let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
-        let slave_config = I2SChanConfig::new(I2SDir::Rx)
-            .set_sync_type(I2SSync::Internal)
-            .set_frame_sync_active_high(true);
-
-        let pins_a = (
-            pe2.into_alternate_af6(),       // MCLK_A
-            pe5.into_alternate_af6(),       // SCK_A
-            pe4.into_alternate_af6(),       // FS_A
-            pe6.into_alternate_af6(),       // SD_A
-            Some(pe3.into_alternate_af6()), // SD_B
-        );
-
-        // Hand off to audio module
-        let mut sai = sai1_d.i2s_ch_a(
-            pins_a,
-            crate::AUDIO_SAMPLE_HZ,
-            I2SDataSize::BITS_24,
-            sai1_rec,
+        let sai: Sai<SAI1, I2S> = setup_sai(
+            &board_version,
+            sai1_d,
+            sai1_p,
+            pe2,
+            pe3,
+            pe4,
+            pe5,
+            pe6,
             clocks,
-            I2sUsers::new(master_config).add_slave(slave_config),
+            &mut input_stream,
+            &mut output_stream,
         );
 
-        input_stream.start(|_sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelB);
-        });
+        setup_audio_codec(&board_version, i2c2_p, ph4, pb11, clocks);
 
-        output_stream.start(|sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelA);
-
-            // wait until sai1's fifo starts to receive data
-            info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.cha.sr.read().flvl().is_empty() {}
-            info!("Audio started!");
-            sai.enable();
-            sai.try_send(0, 0).unwrap();
-        });
-        let input = Input::new(unsafe { &mut RX_BUFFER });
         let output = Output::new(unsafe { &mut TX_BUFFER });
+        let input = Input::new(unsafe { &mut RX_BUFFER });
+
         info!(
             "{:?}, {:?}",
             &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
         );
+
         Audio {
             sai,
             input_stream,
@@ -411,14 +519,4 @@ impl Iterator for Mono<'_> {
             None
         }
     }
-}
-
-/**
- * Fall through is Daisy Seed v1 (aka Daisy Seed rev4)
- * PD3 tied to gnd is Daisy Seed v1.1 (aka Daisy Seed rev5)
- * PD4 tied to gnd reserved for future hardware
- */
-fn is_daisy_seed_rev_5(pin: gpiod::PD3<Analog>) -> bool {
-    let pin = pin.into_pull_up_input();
-    pin.is_low().unwrap()
 }

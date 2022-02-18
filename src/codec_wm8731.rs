@@ -17,11 +17,21 @@ pub fn init(i2c: I2c<I2C2>) {
     let mut wm8731 = Wm8731::new(interface);
 
     // Set Line Inputs to 0DB
-    let cmd = left_line_in().invol().db(InVoldB::P0DB).into_command();
+    let cmd = left_line_in()
+        .invol()
+        .db(InVoldB::P0DB)
+        .inmute()
+        .clear_bit()
+        .into_command();
     wm8731.send(cmd);
     delay_ms(10);
 
-    let cmd = right_line_in().invol().db(InVoldB::P0DB).into_command();
+    let cmd = right_line_in()
+        .invol()
+        .db(InVoldB::P0DB)
+        .inmute()
+        .clear_bit()
+        .into_command();
     wm8731.send(cmd);
     delay_ms(10);
 
@@ -42,6 +52,8 @@ pub fn init(i2c: I2c<I2C2>) {
 
     // Analog and Digital Routing.
     let cmd = analogue_audio_path()
+        .bypass()
+        .disable()
         .mutemic()
         .set_bit()
         .insel()
@@ -52,16 +64,39 @@ pub fn init(i2c: I2c<I2C2>) {
     wm8731.send(cmd);
     delay_ms(10);
 
-    // Configure power management.
-    let cmd = power_down()
-        .micpd()
-        .set_bit()
-        .clkoutpd()
-        .set_bit()
-        .oscpd()
+    let cmd = digital_audio_path()
+        .dacmu()
+        .clear_bit()
+        .adchpd()
         .set_bit()
         .into_command();
+    wm8731.send(cmd);
+    delay_ms(10);
 
+    // Configure power management.
+    let cmd = power_down()
+        .poweroff()
+        .disable()
+        .lineinpd()
+        .disable()
+        .micpd()
+        .disable()
+        .adcpd()
+        .disable()
+        .dacpd()
+        .disable()
+        .outpd()
+        .disable()
+        .oscpd()
+        .disable()
+        .clkoutpd()
+        .disable()
+        .into_command();
+
+    wm8731.send(cmd);
+    delay_ms(10);
+
+    let cmd = active_control().inactive().into_command();
     wm8731.send(cmd);
     delay_ms(10);
 
@@ -87,10 +122,6 @@ pub fn init(i2c: I2c<I2C2>) {
     delay_ms(10);
 
     // Enable.
-    let cmd = active_control().inactive().into_command();
-    wm8731.send(cmd);
-    delay_ms(10);
-
     let cmd = active_control().active().into_command();
     wm8731.send(cmd);
     delay_ms(10);

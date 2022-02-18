@@ -6,7 +6,6 @@ use stm32h7xx_hal::{
     device::SAI1,
     dma,
     gpio::{gpiob, gpiod, gpioe, gpioh, Analog},
-    hal::digital::v2::InputPin,
     i2c::I2cExt,
     pac,
     prelude::_stm32h7xx_hal_time_U32Ext,

@@ -24,7 +24,7 @@ mod app {
         data::{
             byte::{from_traits::FromClamped, u7::U7},
             midi::{channel::Channel as MidiChannel, message::Message, notes::Note},
-            usb::constants::{USB_AUDIO_CLASS, USB_MIDISTREAMING_SUBCLASS},
+            usb::constants::USB_CLASS_NONE,
             usb_midi::{
                 midi_packet_reader::MidiPacketBufferReader,
                 usb_midi_event_packet::UsbMidiEventPacket,
@@ -139,8 +139,11 @@ mod app {
 
         let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x5e4))
             .product("daisy midi")
-            .device_class(USB_AUDIO_CLASS)
-            .device_sub_class(USB_MIDISTREAMING_SUBCLASS)
+            .device_class(USB_CLASS_NONE)
+            /* TODO should be? but doesn't work on mac osX
+            .device_class(usbd_midi::data::usb::constants::USB_AUDIO_CLASS)
+            .device_sub_class(usbd_midi::data::usb::constants::USB_MIDISTREAMING_SUBCLASS)
+            */
             .build();
 
         (

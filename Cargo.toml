@@ -19,7 +19,7 @@ debouncr = "0.2.2"
 log = "0.4.11"
 micromath = "1.1.1"
 panic-halt = "0.2.0"
-stm32h7xx-hal = { version = "0.11.0", features = ["stm32h750v","rt","fmc", "xspi", "sdmmc", "sdmmc-fatfs"] }
+stm32h7xx-hal = { version = "0.11.0", features = ["stm32h750v","rt","fmc", "xspi", "sdmmc", "sdmmc-fatfs", "usb_hs"] }
 stm32-fmc = "0.2.2"
 rtt-target = { version = "0.3.0", features = ["cortex-m"], optional = true }
 panic-rtt-target = { version = "0.1.1", features = ["cortex-m"], optional = true }
@@ -56,3 +56,6 @@ opt-level = "s" # optimize for binary size
 
 [dev_dependencies]
 embedded-sdmmc = "0.3.0"
+usbd-midi = { git = "https://github.com/btrepp/usbd-midi/" }
+num_enum = { version = "0.5.1", default-features = false }
+usb-device = "0.2.8"

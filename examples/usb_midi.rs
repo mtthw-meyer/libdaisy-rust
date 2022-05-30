@@ -14,6 +14,7 @@ mod app {
     use stm32h7xx_hal::{
         rcc::rec::UsbClkSel,
         stm32,
+        time::MilliSeconds,
         timer::{Event, Timer},
         usb_hs::{UsbBus, USB2},
     };
@@ -64,9 +65,11 @@ mod app {
         }
         */
 
-        let mut timer2 = device
-            .TIM2
-            .timer(200.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
+        let mut timer2 = device.TIM2.timer(
+            MilliSeconds::from_ticks(200).into_rate(),
+            ccdr.peripheral.TIM2,
+            &mut ccdr.clocks,
+        );
         timer2.listen(Event::TimeOut);
 
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
@@ -111,12 +114,7 @@ mod app {
             Some(gpiob.pb15),
         );
 
-        let (pin_dm, pin_dp) = {
-            (
-                gpioa.pa11.into_alternate_af10(),
-                gpioa.pa12.into_alternate_af10(),
-            )
-        };
+        let (pin_dm, pin_dp) = { (gpioa.pa11.into_alternate(), gpioa.pa12.into_alternate()) };
         //float makes this a device
         gpioa.pa10.into_floating_input();
         let usb = USB2::new(
@@ -209,10 +207,10 @@ mod app {
                     if let Ok(packet) = packet {
                         match packet.message {
                             Message::NoteOn(_, _, U7::MIN) | Message::NoteOff(..) => {
-                                led.set_low().unwrap();
+                                led.set_low();
                             }
                             Message::NoteOn(..) => {
-                                led.set_high().unwrap();
+                                led.set_high();
                             }
                             _ => {}
                         }

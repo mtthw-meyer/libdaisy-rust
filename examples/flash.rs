@@ -10,9 +10,9 @@
     peripherals = true,
 )]
 mod app {
-    use libdaisy::{flash::FlashErase, gpio, logger, prelude::*, system};
+    use libdaisy::{flash::FlashErase, gpio, logger, system};
     use log::info;
-    use stm32h7xx_hal::{nb, stm32, timer::Timer};
+    use stm32h7xx_hal::{nb, stm32, time::MilliSeconds, timer::Timer};
 
     #[shared]
     struct Shared {}
@@ -29,7 +29,9 @@ mod app {
         let mut system = system::System::init(ctx.core, ctx.device);
         info!("Startup done!");
 
-        system.timer2.set_freq(500.ms());
+        system
+            .timer2
+            .set_freq(MilliSeconds::from_ticks(500).into_rate());
 
         let mut flash = system.flash;
 
@@ -95,9 +97,9 @@ mod app {
         ctx.local.timer2.clear_irq();
 
         if *ctx.local.led_is_on {
-            ctx.local.seed_led.set_high().unwrap();
+            ctx.local.seed_led.set_high();
         } else {
-            ctx.local.seed_led.set_low().unwrap();
+            ctx.local.seed_led.set_low();
         }
         *ctx.local.led_is_on = !(*ctx.local.led_is_on);
     }

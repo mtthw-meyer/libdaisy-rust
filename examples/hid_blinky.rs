@@ -11,9 +11,7 @@ mod app {
     // Includes a panic handler and optional logging facilities
     use libdaisy::logger;
 
-    use stm32h7xx_hal::adc;
-    use stm32h7xx_hal::stm32;
-    use stm32h7xx_hal::timer::Timer;
+    use stm32h7xx_hal::{adc, prelude::*, stm32, time::MilliSeconds, timer::Timer};
 
     use libdaisy::gpio::*;
     use libdaisy::hid;
@@ -36,14 +34,16 @@ mod app {
         logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
 
-        system.timer2.set_freq(1.ms());
+        system
+            .timer2
+            .set_freq(MilliSeconds::from_ticks(1).into_rate());
 
         let mut led1 = hid::Led::new(system.gpio.led, false, 1000);
         led1.set_brightness(0.5);
 
         let mut adc1 = system.adc1.enable();
         adc1.set_resolution(adc::Resolution::SIXTEENBIT);
-        let adc1_max = adc1.max_sample() as f32;
+        let adc1_max = adc1.slope() as f32;
 
         let daisy15 = system
             .gpio

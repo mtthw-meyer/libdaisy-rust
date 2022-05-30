@@ -101,8 +101,8 @@ mod app {
             &mut ccdr.clocks,
         );
 
-        gpio.led.set_low().unwrap();
-        if let Ok(_) = sd.init_card(50.mhz()) {
+        gpio.led.set_low();
+        if let Ok(_) = sd.init(50.MHz()) {
             info!("Got SD Card!");
             let mut sd_fatfs = Controller::new(sd.sdmmc_block_device(), FakeTime);
             if let Ok(sd_fatfs_volume) = sd_fatfs.get_volume(VolumeIdx(0)) {
@@ -113,7 +113,7 @@ mod app {
                         })
                         .unwrap();
                     sd_fatfs.close_dir(&sd_fatfs_volume, sd_fatfs_root_dir);
-                    gpio.led.set_high().unwrap();
+                    gpio.led.set_high();
                 } else {
                     info!("Failed to get root dir");
                 }

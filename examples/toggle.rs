@@ -17,7 +17,6 @@ mod app {
     use libdaisy::hid;
     use libdaisy::prelude::*;
     use libdaisy::system;
-    use stm32h7xx_hal::time::Hertz;
 
     #[shared]
     struct Shared {}
@@ -25,7 +24,7 @@ mod app {
     #[local]
     struct Local {
         seed_led: SeedLed,
-        switch1: hid::Switch<Daisy28<Input<PullUp>>>,
+        switch1: hid::Switch<Daisy28<Input>>,
         timer2: Timer<stm32::TIM2>,
     }
 
@@ -41,7 +40,7 @@ mod app {
             .expect("Failed to get pin daisy28!")
             .into_pull_up_input();
 
-        system.timer2.set_freq(Hertz(100));
+        system.timer2.set_freq(100.Hz());
 
         let switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
 
@@ -72,9 +71,9 @@ mod app {
         if switch1.is_falling() {
             info!("Button pressed!");
             if *ctx.local.led_is_on {
-                ctx.local.seed_led.set_high().unwrap();
+                ctx.local.seed_led.set_high();
             } else {
-                ctx.local.seed_led.set_low().unwrap();
+                ctx.local.seed_led.set_low();
             }
             *ctx.local.led_is_on = !(*ctx.local.led_is_on);
         }

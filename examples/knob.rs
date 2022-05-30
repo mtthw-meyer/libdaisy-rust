@@ -19,7 +19,6 @@ mod app {
     use libdaisy::hid;
     use libdaisy::prelude::*;
     use libdaisy::system;
-    use stm32h7xx_hal::time::Hertz;
 
     #[shared]
     struct Shared {}
@@ -40,7 +39,7 @@ mod app {
         let duty_cycle = 50;
         let resolution = 20;
 
-        system.timer2.set_freq(Hertz(duty_cycle * resolution));
+        system.timer2.set_freq((duty_cycle * resolution).Hz());
 
         let daisy28 = system
             .gpio
@@ -53,7 +52,7 @@ mod app {
 
         let mut adc1 = system.adc1.enable();
         adc1.set_resolution(adc::Resolution::SIXTEENBIT);
-        let adc1_max = adc1.max_sample() as f32;
+        let adc1_max = adc1.slope() as f32;
 
         let daisy21 = system
             .gpio

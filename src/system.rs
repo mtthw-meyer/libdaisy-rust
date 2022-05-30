@@ -5,32 +5,38 @@
 use log::info;
 
 use stm32h7xx_hal::{
-    adc, delay::Delay, prelude::*, rcc, stm32, stm32::TIM2, timer::Event, timer::Timer,
+    adc,
+    delay::Delay,
+    prelude::*,
+    rcc, stm32,
+    stm32::TIM2,
+    time::MilliSeconds,
+    timer::{Event, Timer},
 };
 
 use crate::audio::Audio;
 use crate::*;
 
-const HSE_CLOCK_MHZ: MegaHertz = MegaHertz(16);
-const HCLK_MHZ: MegaHertz = MegaHertz(200);
-const HCLK2_MHZ: MegaHertz = MegaHertz(200);
+const HSE_CLOCK_HZ: Hertz = Hertz::from_raw(16_000_000);
+const HCLK_MHZ: MegaHertz = MegaHertz::from_raw(200);
+const HCLK2_MHZ: MegaHertz = MegaHertz::from_raw(200);
 
 // PCLKx
-const PCLK_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 4);
+const PCLK_HZ: Hertz = Hertz::from_raw(CLOCK_RATE_HZ.raw() / 4);
 // 49_152_344
 // PLL1
 const PLL1_P_HZ: Hertz = CLOCK_RATE_HZ;
-const PLL1_Q_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 18);
-const PLL1_R_HZ: Hertz = Hertz(CLOCK_RATE_HZ.0 / 32);
+const PLL1_Q_HZ: Hertz = Hertz::from_raw(CLOCK_RATE_HZ.raw() / 18);
+const PLL1_R_HZ: Hertz = Hertz::from_raw(CLOCK_RATE_HZ.raw() / 32);
 // PLL2
-const PLL2_P_HZ: Hertz = Hertz(4_000_000);
-const PLL2_Q_HZ: Hertz = Hertz(PLL2_P_HZ.0 / 2); // No divder given, what's the default?
-const PLL2_R_HZ: Hertz = Hertz(PLL2_P_HZ.0 / 4); // No divder given, what's the default?
-                                                 // PLL3
-                                                 // 48Khz * 256 = 12_288_000
-const PLL3_P_HZ: Hertz = Hertz(AUDIO_SAMPLE_HZ.0 * 257);
-const PLL3_Q_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 4);
-const PLL3_R_HZ: Hertz = Hertz(PLL3_P_HZ.0 / 16);
+const PLL2_P_HZ: Hertz = Hertz::from_raw(4_000_000);
+const PLL2_Q_HZ: Hertz = Hertz::from_raw(PLL2_P_HZ.raw() / 2); // No divder given, what's the default?
+const PLL2_R_HZ: Hertz = Hertz::from_raw(PLL2_P_HZ.raw() / 4); // No divder given, what's the default?
+                                                               // PLL3
+                                                               // 48Khz * 256 = 12_288_000
+const PLL3_P_HZ: Hertz = Hertz::from_raw(AUDIO_SAMPLE_HZ.raw() * 257);
+const PLL3_Q_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw() / 4);
+const PLL3_R_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw() / 16);
 
 pub struct System {
     pub gpio: crate::gpio::GPIO,
@@ -52,7 +58,7 @@ impl System {
         let vos = pwr.vos0(syscfg).freeze();
 
         rcc.constrain()
-            .use_hse(HSE_CLOCK_MHZ)
+            .use_hse(HSE_CLOCK_HZ)
             .sys_ck(CLOCK_RATE_HZ)
             .pclk1(PCLK_HZ) // DMA clock
             // PLL1
@@ -107,9 +113,11 @@ impl System {
         Self::init_debug(&mut core.DCB, &mut core.DWT);
 
         // Timers
-        let mut timer2 = device
-            .TIM2
-            .timer(100.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
+        let mut timer2 = device.TIM2.timer(
+            MilliSeconds::from_ticks(100).into_rate(),
+            ccdr.peripheral.TIM2,
+            &mut ccdr.clocks,
+        );
         timer2.listen(Event::TimeOut);
 
         // let mut timer3 = device

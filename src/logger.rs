@@ -85,6 +85,10 @@ cfg_if::cfg_if! {
             cortex_m_log::log::init(&LOGGER).unwrap();
         }
     }
+    else if #[cfg(any(feature = "log-none"))] {
+        /// no log and no panic handler
+        pub fn init() {}
+    }
     else {
         use panic_halt as _;
         /// Initialize logging if feature is enabled, otherwise does nothing

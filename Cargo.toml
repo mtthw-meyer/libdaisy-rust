@@ -35,6 +35,7 @@ default = []
 log-rtt = ["rtt-target", "panic-rtt-target"]
 log-itm = ["panic-itm", "lazy_static", "cortex-m-log"]
 log-semihosting = ["panic-semihosting", "lazy_static", "cortex-m-log", "cortex-m-semihosting"]
+log-none = []
 
 # this lets you use `cargo fix`!
 #[[bin]]

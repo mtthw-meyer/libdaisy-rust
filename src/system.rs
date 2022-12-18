@@ -65,8 +65,8 @@ impl System {
             // .pll2_q_ck(PLL2_Q_HZ)
             // .pll2_r_ck(PLL2_R_HZ)
             // PLL3
-            .pll3_strategy(rcc::PllConfigStrategy::Iterative)
-            .pll3_p_ck(PLL3_P_HZ)
+            .pll3_strategy(rcc::PllConfigStrategy::Fractional)
+            .pll3_p_ck(PLL3_P_HZ) // used for SAI1
             .pll3_q_ck(PLL3_Q_HZ)
             .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &syscfg)

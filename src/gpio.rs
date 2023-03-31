@@ -6,7 +6,6 @@ use stm32h7xx_hal::gpio::gpioc::PC7;
 // use stm32h7xx_hal::hal::digital::v2::InputPin;
 #[allow(unused_imports)]
 use stm32h7xx_hal::gpio::{Alternate, Analog, Input, Output, Pull, PushPull};
-use stm32h7xx_hal::hal::digital::v2::OutputPin;
 
 pub use gpio::gpioa::PA0 as Daisy25;
 pub use gpio::gpioa::PA1 as Daisy24;

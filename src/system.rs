@@ -105,6 +105,7 @@ impl System {
         let (adc1, adc2) = adc::adc12(
             device.ADC1,
             device.ADC2,
+            4.MHz(),
             &mut delay,
             ccdr.peripheral.ADC12,
             &ccdr.clocks,

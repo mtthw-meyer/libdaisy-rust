@@ -169,7 +169,7 @@ impl Audio {
             );
 
         info!("Setup up SAI...");
-        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
         let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
         let slave_config = I2SChanConfig::new(I2SDir::Rx)
             .set_sync_type(I2SSync::Internal)

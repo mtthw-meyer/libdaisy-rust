@@ -2,6 +2,7 @@ use stm32h7xx_hal::{
     self as hal,
     gpio::{self, Analog, Speed},
     prelude::*,
+    sdmmc::SdCard,
     stm32,
 };
 
@@ -17,7 +18,7 @@ pub fn init(
     device: stm32::SDMMC1,
     sdmmc1: hal::rcc::rec::Sdmmc1,
     clocks: &hal::rcc::CoreClocks,
-) -> hal::sdmmc::Sdmmc<stm32::SDMMC1> {
+) -> hal::sdmmc::Sdmmc<stm32::SDMMC1, SdCard> {
     /*
      * libDaisy
      *  PC12 - SDMMC1 CK
@@ -30,29 +31,29 @@ pub fn init(
 
     // SDMMC pins
     let clk = daisy6
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(false)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let cmd = daisy5
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d0 = daisy4
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d1 = daisy3
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d2 = daisy2
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d3 = daisy1
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
 
     // Create SDMMC
     device.sdmmc((clk, cmd, d0, d1, d2, d3), sdmmc1, clocks)

@@ -1,6 +1,6 @@
 //! Interface abstractions for switches, potentiometers, etc.
 #[allow(unused_imports)]
-use stm32h7xx_hal::gpio::{Analog, Input, Output, PullDown, PullUp, PushPull};
+use stm32h7xx_hal::gpio::{Analog, Input, Output, PushPull};
 use stm32h7xx_hal::hal::digital::v2::{InputPin, OutputPin};
 
 use debouncr::{debounce_4, Debouncer, Edge, Repeat4};

@@ -162,8 +162,8 @@ impl GPIO {
 
     /// Reset the AK4556 codec chip
     pub fn reset_codec(&mut self) {
-        self.codec.set_low().unwrap();
+        self.codec.set_low();
         delay_ms(5);
-        self.codec.set_high().unwrap();
+        self.codec.set_high();
     }
 }

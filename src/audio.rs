@@ -176,11 +176,11 @@ impl Audio {
             .set_frame_sync_active_high(true);
 
         let pins_a = (
-            pe2.into_alternate_af6(),       // MCLK_A
-            pe5.into_alternate_af6(),       // SCK_A
-            pe4.into_alternate_af6(),       // FS_A
-            pe6.into_alternate_af6(),       // SD_A
-            Some(pe3.into_alternate_af6()), // SD_B
+            pe2.into_alternate(),       // MCLK_A
+            pe5.into_alternate(),       // SCK_A
+            pe4.into_alternate(),       // FS_A
+            pe6.into_alternate(),       // SD_A
+            Some(pe3.into_alternate()), // SD_B
         );
 
         // Hand off to audio module

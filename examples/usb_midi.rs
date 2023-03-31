@@ -111,12 +111,7 @@ mod app {
             Some(gpiob.pb15),
         );
 
-        let (pin_dm, pin_dp) = {
-            (
-                gpioa.pa11.into_alternate_af10(),
-                gpioa.pa12.into_alternate_af10(),
-            )
-        };
+        let (pin_dm, pin_dp) = { (gpioa.pa11.into_alternate(), gpioa.pa12.into_alternate()) };
         //float makes this a device
         gpioa.pa10.into_floating_input();
         let usb = USB2::new(

@@ -30,27 +30,27 @@ pub fn init(
 
     // SDMMC pins
     let clk = daisy6
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(false)
         .set_speed(Speed::VeryHigh);
     let cmd = daisy5
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
         .set_speed(Speed::VeryHigh);
     let d0 = daisy4
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
         .set_speed(Speed::VeryHigh);
     let d1 = daisy3
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
         .set_speed(Speed::VeryHigh);
     let d2 = daisy2
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
         .set_speed(Speed::VeryHigh);
     let d3 = daisy1
-        .into_alternate_af12()
+        .into_alternate()
         .internal_pull_up(true)
         .set_speed(Speed::VeryHigh);
 

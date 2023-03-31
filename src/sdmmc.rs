@@ -2,11 +2,12 @@ use stm32h7xx_hal::{
     self as hal,
     gpio::{self, Analog, Speed},
     prelude::*,
+    sdmmc::SdmmcPeripheral,
     stm32,
 };
 
 /// Boiler plate to create SDMMC1
-pub fn init(
+pub fn init<P: SdmmcPeripheral>(
     daisy1: gpio::gpioc::PC11<Analog>,
     daisy2: gpio::gpioc::PC10<Analog>,
     daisy3: gpio::gpioc::PC9<Analog>,
@@ -17,7 +18,7 @@ pub fn init(
     device: stm32::SDMMC1,
     sdmmc1: hal::rcc::rec::Sdmmc1,
     clocks: &hal::rcc::CoreClocks,
-) -> hal::sdmmc::Sdmmc<stm32::SDMMC1> {
+) -> hal::sdmmc::Sdmmc<stm32::SDMMC1, P> {
     /*
      * libDaisy
      *  PC12 - SDMMC1 CK

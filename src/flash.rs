@@ -159,7 +159,7 @@ impl Flash {
         let io2 = pf7.into_alternate().set_speed(Speed::VeryHigh);
         let io3 = pf6.into_alternate().set_speed(Speed::VeryHigh);
 
-        let config = Config::new(133.mhz()).mode(QspiMode::OneBit);
+        let config = Config::new(133.MHz()).mode(QspiMode::OneBit);
         let qspi = regs.bank1((sck, io0, io1, io2, io3), config, &clocks, prec);
 
         let mut flash = Flash {

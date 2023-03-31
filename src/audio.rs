@@ -202,7 +202,7 @@ impl Audio {
 
             // wait until sai1's fifo starts to receive data
             info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.cha.sr.read().flvl().is_empty() {}
+            while sai1_rb.cha().sr.read().flvl().is_empty() {}
             info!("Audio started!");
             sai.enable();
             sai.try_send(0, 0).unwrap();

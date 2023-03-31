@@ -33,27 +33,27 @@ pub fn init<P: SdmmcPeripheral>(
     let clk = daisy6
         .into_alternate()
         .internal_pull_up(false)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let cmd = daisy5
         .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d0 = daisy4
         .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d1 = daisy3
         .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d2 = daisy2
         .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
     let d3 = daisy1
         .into_alternate()
         .internal_pull_up(true)
-        .set_speed(Speed::VeryHigh);
+        .speed(Speed::VeryHigh);
 
     // Create SDMMC
     device.sdmmc((clk, cmd, d0, d1, d2, d3), sdmmc1, clocks)

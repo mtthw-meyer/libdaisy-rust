@@ -14,6 +14,7 @@ mod app {
     use stm32h7xx_hal::{
         rcc::rec::UsbClkSel,
         stm32,
+        time::MilliSeconds,
         timer::{Event, Timer},
         usb_hs::{UsbBus, USB2},
     };
@@ -54,7 +55,7 @@ mod app {
         let device = ctx.device;
         let mut ccdr = System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let _ = ccdr.clocks.hsi48_ck().expect("HSI48 must run");
-        ccdr.peripheral.kernel_usb_clk_mux(UsbClkSel::HSI48);
+        ccdr.peripheral.kernel_usb_clk_mux(UsbClkSel::Hsi48);
 
         /*
         unsafe {
@@ -64,9 +65,11 @@ mod app {
         }
         */
 
-        let mut timer2 = device
-            .TIM2
-            .timer(200.ms(), ccdr.peripheral.TIM2, &mut ccdr.clocks);
+        let mut timer2 = device.TIM2.timer(
+            MilliSeconds::from_ticks(200).into_rate(),
+            ccdr.peripheral.TIM2,
+            &mut ccdr.clocks,
+        );
         timer2.listen(Event::TimeOut);
 
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
@@ -204,10 +207,10 @@ mod app {
                     if let Ok(packet) = packet {
                         match packet.message {
                             Message::NoteOn(_, _, U7::MIN) | Message::NoteOff(..) => {
-                                led.set_low().unwrap();
+                                led.set_low();
                             }
                             Message::NoteOn(..) => {
-                                led.set_high().unwrap();
+                                led.set_high();
                             }
                             _ => {}
                         }

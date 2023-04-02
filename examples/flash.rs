@@ -29,7 +29,7 @@ mod app {
         let mut system = system::System::init(ctx.core, ctx.device);
         info!("Startup done!");
 
-        system.timer2.set_freq(500.ms());
+        system.timer2.set_freq(2.Hz());
 
         let mut flash = system.flash;
 
@@ -95,9 +95,9 @@ mod app {
         ctx.local.timer2.clear_irq();
 
         if *ctx.local.led_is_on {
-            ctx.local.seed_led.set_high().unwrap();
+            ctx.local.seed_led.set_high();
         } else {
-            ctx.local.seed_led.set_low().unwrap();
+            ctx.local.seed_led.set_low();
         }
         *ctx.local.led_is_on = !(*ctx.local.led_is_on);
     }

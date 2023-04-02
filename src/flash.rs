@@ -8,7 +8,7 @@ use stm32h7xx_hal::{
     nb::Error as nbError,
     prelude::*,
     rcc,
-    xspi::{Config, QspiError, QspiMode, QspiWord}, time::MegaHertz,
+    xspi::{Config, QspiError, QspiMode, QspiWord},
 };
 
 pub type FlashResult<T> = Result<T, QspiError>;

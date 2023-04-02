@@ -36,14 +36,14 @@ mod app {
         logger::init();
         let mut system = system::System::init(ctx.core, ctx.device);
 
-        system.timer2.set_freq(1.ms());
+        system.timer2.set_freq(1000.Hz());
 
         let mut led1 = hid::Led::new(system.gpio.led, false, 1000);
         led1.set_brightness(0.5);
 
         let mut adc1 = system.adc1.enable();
-        adc1.set_resolution(adc::Resolution::SIXTEENBIT);
-        let adc1_max = adc1.max_sample() as f32;
+        adc1.set_resolution(adc::Resolution::SixteenBit);
+        let adc1_max = adc1.slope() as f32; // FIXME
 
         let daisy15 = system
             .gpio

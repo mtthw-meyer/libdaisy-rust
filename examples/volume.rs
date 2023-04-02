@@ -45,8 +45,8 @@ mod app {
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();
-        adc1.set_resolution(adc::Resolution::SIXTEENBIT);
-        let adc1_max = adc1.max_sample() as f32;
+        adc1.set_resolution(adc::Resolution::SixteenBit);
+        let adc1_max = adc1.slope() as f32; //FIXME
 
         let daisy15 = system
             .gpio

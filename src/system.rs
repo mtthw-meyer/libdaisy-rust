@@ -5,7 +5,7 @@
 use log::info;
 
 use stm32h7xx_hal::{
-    adc, delay::Delay, prelude::*, rcc, stm32, stm32::TIM2, time::MilliSeconds, timer::{Event, Timer},
+    adc, delay::Delay, prelude::*, rcc, stm32, stm32::TIM2, time::MilliSeconds, timer::Timer,
 };
 
 use crate::audio::Audio;
@@ -108,7 +108,7 @@ impl System {
         Self::init_debug(&mut core.DCB, &mut core.DWT);
 
         // Timers
-        let mut timer2 = device.TIM2.timer(
+        let timer2 = device.TIM2.timer(
             MilliSeconds::from_ticks(100).into_rate(),
             ccdr.peripheral.TIM2,
             &mut ccdr.clocks,

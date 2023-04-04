@@ -12,19 +12,21 @@ mod app {
     use libdaisy::logger;
 
     use stm32h7xx_hal::stm32;
+    use stm32h7xx_hal::time::MilliSeconds;
     use stm32h7xx_hal::timer::Timer;
 
     use libdaisy::gpio::*;
     use libdaisy::hid;
     use libdaisy::prelude::*;
     use libdaisy::system;
+
     #[shared]
     struct Shared {}
 
     #[local]
     struct Local {
         seed_led: SeedLed,
-        switch1: hid::Switch<Daisy28<Input<PullUp>>>,
+        switch1: hid::Switch<Daisy28<Input>>,
         timer2: Timer<stm32::TIM2>,
     }
 
@@ -40,7 +42,9 @@ mod app {
             .expect("Failed to get pin daisy28!")
             .into_pull_up_input();
 
-        system.timer2.set_freq(1.ms());
+        system
+            .timer2
+            .set_freq(MilliSeconds::from_ticks(1).into_rate());
 
         // Switch rate is determined by timer freq
         let mut switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
@@ -82,9 +86,9 @@ mod app {
         }
 
         if *ctx.local.led_is_on {
-            ctx.local.seed_led.set_high().unwrap();
+            ctx.local.seed_led.set_high();
         } else {
-            ctx.local.seed_led.set_low().unwrap();
+            ctx.local.seed_led.set_low();
         }
     }
 }

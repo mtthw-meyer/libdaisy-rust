@@ -169,18 +169,18 @@ impl Audio {
             );
 
         info!("Setup up SAI...");
-        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::PLL3_P);
+        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
         let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
         let slave_config = I2SChanConfig::new(I2SDir::Rx)
             .set_sync_type(I2SSync::Internal)
             .set_frame_sync_active_high(true);
 
         let pins_a = (
-            pe2.into_alternate_af6(),       // MCLK_A
-            pe5.into_alternate_af6(),       // SCK_A
-            pe4.into_alternate_af6(),       // FS_A
-            pe6.into_alternate_af6(),       // SD_A
-            Some(pe3.into_alternate_af6()), // SD_B
+            pe2.into_alternate(),       // MCLK_A
+            pe5.into_alternate(),       // SCK_A
+            pe4.into_alternate(),       // FS_A
+            pe6.into_alternate(),       // SD_A
+            Some(pe3.into_alternate()), // SD_B
         );
 
         // Hand off to audio module
@@ -202,7 +202,7 @@ impl Audio {
 
             // wait until sai1's fifo starts to receive data
             info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.cha.sr.read().flvl().is_empty() {}
+            while sai1_rb.cha().sr.read().flvl().is_empty() {}
             info!("Audio started!");
             sai.enable();
             sai.try_send(0, 0).unwrap();

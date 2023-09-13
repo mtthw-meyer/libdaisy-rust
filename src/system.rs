@@ -32,7 +32,7 @@ const PLL1_R_HZ: Hertz = Hertz::from_raw(CLOCK_RATE_HZ.raw() / 32);
 // PLL2
 const PLL2_P_HZ: Hertz = Hertz::from_raw(4_000_000);
 
-const PLL3_P_HZ: Hertz = Hertz::from_raw(AUDIO_SAMPLE_HZ.raw() * 257);
+const PLL3_P_HZ: Hertz = Hertz::from_raw(AUDIO_SAMPLE_HZ.raw() * 256);
 
 pub struct System {
     pub gpio: crate::gpio::GPIO,
@@ -65,7 +65,7 @@ impl System {
             // PLL2
             .pll2_p_ck(PLL2_P_HZ) // Default adc_ker_ck_input
             // PLL3
-            .pll3_strategy(rcc::PllConfigStrategy::Fractional)
+            .pll3_strategy(rcc::PllConfigStrategy::FractionalNotLess)
             .pll3_p_ck(PLL3_P_HZ) // used for SAI1
             .freeze(vos, &syscfg)
     }

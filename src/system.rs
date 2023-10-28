@@ -31,12 +31,8 @@ const PLL1_Q_HZ: Hertz = Hertz::from_raw(CLOCK_RATE_HZ.raw() / 18);
 const PLL1_R_HZ: Hertz = Hertz::from_raw(CLOCK_RATE_HZ.raw() / 32);
 // PLL2
 const PLL2_P_HZ: Hertz = Hertz::from_raw(4_000_000);
-const PLL2_Q_HZ: Hertz = Hertz::from_raw(PLL2_P_HZ.raw() / 2); // No divder given, what's the default?
-const PLL2_R_HZ: Hertz = Hertz::from_raw(PLL2_P_HZ.raw() / 4); // No divder given, what's the default?
 
-const PLL3_P_HZ: Hertz = Hertz::from_raw(AUDIO_SAMPLE_HZ.raw() * 257);
-const PLL3_Q_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw() / 4);
-const PLL3_R_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw() / 16);
+const PLL3_P_HZ: Hertz = Hertz::from_raw(AUDIO_SAMPLE_HZ.raw() * 256);
 
 pub struct System {
     pub gpio: crate::gpio::GPIO,
@@ -68,13 +64,9 @@ impl System {
             .pll1_r_ck(PLL1_R_HZ)
             // PLL2
             .pll2_p_ck(PLL2_P_HZ) // Default adc_ker_ck_input
-            // .pll2_q_ck(PLL2_Q_HZ)
-            // .pll2_r_ck(PLL2_R_HZ)
             // PLL3
-            .pll3_strategy(rcc::PllConfigStrategy::Fractional)
+            .pll3_strategy(rcc::PllConfigStrategy::FractionalNotLess)
             .pll3_p_ck(PLL3_P_HZ) // used for SAI1
-            .pll3_q_ck(PLL3_Q_HZ)
-            .pll3_r_ck(PLL3_R_HZ)
             .freeze(vos, &syscfg)
     }
 

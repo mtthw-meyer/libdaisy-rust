@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 // #![allow(unused_variables)]
 
+use hal::rcc::CoreClocks;
 use log::info;
 
 use stm32h7xx_hal::{
@@ -44,6 +45,8 @@ pub struct System {
     pub timer2: Timer<TIM2>,
     pub sdram: &'static mut [f32],
     pub flash: crate::flash::Flash,
+    pub clocks: CoreClocks,
+    pub uart: crate::uart::UART,
 }
 
 impl System {
@@ -269,6 +272,13 @@ impl System {
             gpiog.pg6,
         );
 
+        let uart = crate::uart::UART {
+            usart1: Some((device.USART1, ccdr.peripheral.USART1)),
+            usart3: Some((device.USART3, ccdr.peripheral.USART3)),
+            uart4: Some((device.UART4, ccdr.peripheral.UART4)),
+            uart5: Some((device.UART5, ccdr.peripheral.UART5)),
+        };
+
         System {
             gpio,
             audio,
@@ -279,6 +289,8 @@ impl System {
             timer2,
             sdram,
             flash,
+            uart,
+            clocks: ccdr.clocks,
         }
     }
 }

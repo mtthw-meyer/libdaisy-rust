@@ -31,6 +31,7 @@ pub mod prelude;
 pub mod sdmmc;
 pub mod sdram;
 pub mod system;
+pub mod uart;
 
 // Delay for ms, note if interrupts are active delay time will extend
 pub fn delay_ms(ms: u32) {

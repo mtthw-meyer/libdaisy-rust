@@ -60,3 +60,4 @@ embedded-sdmmc = "0.4.0"
 usbd-midi = { git = "https://github.com/btrepp/usbd-midi/" }
 num_enum = { version = "0.5.1", default-features = false }
 usb-device = "0.2.8"
+midi-port = { version = "0.1.0"}

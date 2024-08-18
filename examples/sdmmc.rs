@@ -9,7 +9,7 @@
 mod app {
     use log::info;
 
-    use embedded_sdmmc::{Controller, TimeSource, Timestamp, VolumeIdx};
+    use embedded_sdmmc::{VolumeManager, TimeSource, Timestamp, VolumeIdx};
     use libdaisy::{
         gpio,
         // Includes a panic handler and optional logging facilities
@@ -108,7 +108,7 @@ mod app {
         gpio.led.set_low();
         if let Ok(_) = <Sdmmc<SDMMC1, SdCard>>::init(&mut sd, 50.MHz()) {
             info!("Got SD Card!");
-            let mut sd_fatfs = Controller::new(sd.sdmmc_block_device(), FakeTime);
+            let mut sd_fatfs = VolumeManager::new(sd.sdmmc_block_device(), FakeTime);
             if let Ok(sd_fatfs_volume) = sd_fatfs.get_volume(VolumeIdx(0)) {
                 if let Ok(sd_fatfs_root_dir) = sd_fatfs.open_root_dir(&sd_fatfs_volume) {
                     sd_fatfs

@@ -28,6 +28,7 @@ cortex-m-log = { version = "~0.8", features = ["itm", "semihosting", "log-integr
 panic-itm = { version = "~0.4.2", optional = true  }
 panic-semihosting = { version = "0.6.0", optional = true  }
 cortex-m-semihosting = { version = "0.5.0", optional = true  }
+stable_deref_trait = { version = "1.2.0", default-features = false }
 
 [features]
 default = []

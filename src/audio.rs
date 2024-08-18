@@ -1,16 +1,15 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
+use core::ops::{Deref, DerefMut};
+
 use log::info;
 
 use stm32h7xx_hal::{
     dma,
     gpio::{gpioe, Analog},
-    pac, rcc,
-    rcc::rec,
-    sai,
-    sai::*,
-    stm32,
-    stm32::rcc::d2ccip1r::SAI1SEL_A,
+    pac::{self}, rcc::{self, rec},
+    sai::{self, *},
+    stm32::{self, rcc::d2ccip1r::SAI1SEL_A},
     traits::i2s::FullDuplex,
 };
 
@@ -41,11 +40,37 @@ pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
 pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
 
+/// Raw pointer backed reference to the DMA buffers. It exists to avoid storing multiple aliasing 
+/// `&mut` references to `TX_BUFFER` and `RX_BUFFER`, which is UB. 
+/// # Safety
+/// References are created whenever the underlying buffer is accessed, but since the access is single 
+/// threaded and the references are short lived this should be fine.
+/// This wrapper is only, and may only be, pointing to memory with a 'static lifetime.
+struct DmaBufferRawRef {
+    ptr: *mut DmaBuffer,
+}
+impl Deref for DmaBufferRawRef {
+    type Target = DmaBuffer;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+impl DerefMut for DmaBufferRawRef {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.ptr }
+
+    }
+}
+unsafe impl stable_deref_trait::StableDeref for DmaBufferRawRef {}
+// Required for using the buffer in practice. No more dangerous than sending a `&mut DmaBuffer`
+unsafe impl Send for DmaBufferRawRef {}
+
 type DmaInputStream = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
     stm32::SAI1,
     dma::PeripheralToMemory,
-    &'static mut [u32; DMA_BUFFER_SIZE],
+    DmaBufferRawRef,
     dma::DBTransfer,
 >;
 
@@ -53,7 +78,7 @@ type DmaOutputStream = dma::Transfer<
     dma::dma::Stream0<stm32::DMA1>,
     stm32::SAI1,
     dma::MemoryToPeripheral,
-    &'static mut [u32; DMA_BUFFER_SIZE],
+    DmaBufferRawRef,
     dma::DBTransfer,
 >;
 
@@ -138,7 +163,9 @@ impl Audio {
         let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
 
         // dma1 stream 0
-        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+        let tx_buffer = DmaBufferRawRef {
+            ptr: unsafe { core::ptr::addr_of_mut!(TX_BUFFER)}
+        };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
             .memory_increment(true)
@@ -155,7 +182,9 @@ impl Audio {
             );
 
         // dma1 stream 1
-        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+        let rx_buffer = DmaBufferRawRef {
+            ptr: unsafe { core::ptr::addr_of_mut!(RX_BUFFER)}
+        };
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
@@ -207,8 +236,8 @@ impl Audio {
             sai.enable();
             sai.try_send(0, 0).unwrap();
         });
-        let input = Input::new(unsafe { &mut RX_BUFFER });
-        let output = Output::new(unsafe { &mut TX_BUFFER });
+        let input = Input::new(DmaBufferRawRef { ptr: unsafe { core::ptr::addr_of_mut!(RX_BUFFER) }});
+        let output = Output::new(DmaBufferRawRef { ptr: unsafe { core::ptr::addr_of_mut!(TX_BUFFER) }});
         info!(
             "{:?}, {:?}",
             &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
@@ -289,12 +318,12 @@ impl Audio {
 
 struct Input {
     index: usize,
-    buffer: &'static DmaBuffer,
+    buffer: DmaBufferRawRef,
 }
 
 impl Input {
     /// Create a new Input from a DmaBuffer
-    fn new(buffer: &'static DmaBuffer) -> Self {
+    fn new(buffer: DmaBufferRawRef) -> Self {
         Self { index: 0, buffer }
     }
 
@@ -310,12 +339,12 @@ impl Input {
 
 struct Output {
     index: usize,
-    buffer: &'static mut DmaBuffer,
+    buffer: DmaBufferRawRef,
 }
 
 impl Output {
     /// Create a new Input from a DmaBuffer
-    fn new(buffer: &'static mut DmaBuffer) -> Self {
+    fn new(buffer: DmaBufferRawRef) -> Self {
         Self { index: 0, buffer }
     }
 

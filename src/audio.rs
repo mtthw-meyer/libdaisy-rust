@@ -164,7 +164,7 @@ impl Audio {
 
         // dma1 stream 0
         let tx_buffer = DmaBufferRawRef {
-            ptr: unsafe { core::ptr::addr_of_mut!(TX_BUFFER)}
+            ptr: &raw mut TX_BUFFER,
         };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
@@ -183,7 +183,7 @@ impl Audio {
 
         // dma1 stream 1
         let rx_buffer = DmaBufferRawRef {
-            ptr: unsafe { core::ptr::addr_of_mut!(RX_BUFFER)}
+            ptr: &raw mut RX_BUFFER,
         };
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
@@ -236,8 +236,12 @@ impl Audio {
             sai.enable();
             sai.try_send(0, 0).unwrap();
         });
-        let input = Input::new(DmaBufferRawRef { ptr: unsafe { core::ptr::addr_of_mut!(RX_BUFFER) }});
-        let output = Output::new(DmaBufferRawRef { ptr: unsafe { core::ptr::addr_of_mut!(TX_BUFFER) }});
+        let input = Input::new(DmaBufferRawRef {
+            ptr: &raw mut RX_BUFFER,
+        });
+        let output = Output::new(DmaBufferRawRef {
+            ptr: &raw mut TX_BUFFER,
+        });
         info!(
             "{:?}, {:?}",
             &input.buffer[0] as *const u32, &output.buffer[0] as *const u32

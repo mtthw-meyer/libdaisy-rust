@@ -7,7 +7,8 @@ use log::info;
 use stm32h7xx_hal::{
     dma,
     gpio::{gpioe, Analog},
-    pac::{self}, rcc::{self, rec},
+    pac::{self},
+    rcc::{self, rec},
     sai::{self, *},
     stm32::{self, rcc::d2ccip1r::SAI1SEL_A},
     traits::i2s::FullDuplex,
@@ -40,10 +41,10 @@ pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
 pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
 
-/// Raw pointer backed reference to the DMA buffers. It exists to avoid storing multiple aliasing 
-/// `&mut` references to `TX_BUFFER` and `RX_BUFFER`, which is UB. 
+/// Raw pointer backed reference to the DMA buffers. It exists to avoid storing multiple aliasing
+/// `&mut` references to `TX_BUFFER` and `RX_BUFFER`, which is UB.
 /// # Safety
-/// References are created whenever the underlying buffer is accessed, but since the access is single 
+/// References are created whenever the underlying buffer is accessed, but since the access is single
 /// threaded and the references are short lived this should be fine.
 /// This wrapper is only, and may only be, pointing to memory with a 'static lifetime.
 struct DmaBufferRawRef {
@@ -59,7 +60,6 @@ impl Deref for DmaBufferRawRef {
 impl DerefMut for DmaBufferRawRef {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.ptr }
-
     }
 }
 unsafe impl stable_deref_trait::StableDeref for DmaBufferRawRef {}

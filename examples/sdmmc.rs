@@ -9,7 +9,7 @@
 mod app {
     use log::info;
 
-    use embedded_sdmmc::{VolumeManager, TimeSource, Timestamp, VolumeIdx};
+    use embedded_sdmmc::{TimeSource, Timestamp, VolumeIdx, VolumeManager};
     use libdaisy::{
         gpio,
         // Includes a panic handler and optional logging facilities

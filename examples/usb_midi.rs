@@ -34,6 +34,8 @@ mod app {
         midi_device::MidiClass,
     };
 
+    // Warning: EP_MEMORY may only be used for the UsbBusAllocator. Any
+    // additional references are UB.
     static mut EP_MEMORY: [u32; 1024] = [0; 1024];
 
     #[shared]
@@ -127,6 +129,7 @@ mod app {
             &ccdr.clocks,
         );
 
+        #[allow(static_mut_refs)]
         let usb_bus = cortex_m::singleton!(
             : usb_device::class_prelude::UsbBusAllocator<UsbBus<USB2>> =
                 UsbBus::new(usb, unsafe { &mut EP_MEMORY })

@@ -136,7 +136,8 @@ mod app {
         let midi = MidiClass::new(usb_bus, 1, 1).unwrap();
 
         let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x5e4))
-            .strings(&[StringDescriptors::default().product("daisy midi")]).unwrap()
+            .strings(&[StringDescriptors::default().product("daisy midi")])
+            .unwrap()
             .device_class(USB_CLASS_NONE)
             .build();
 

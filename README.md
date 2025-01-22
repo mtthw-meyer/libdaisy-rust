@@ -38,7 +38,7 @@ cargo objcopy --example passthru --release -- -O binary passthru.bin
 [cargo-binutils-url]: https://github.com/rust-embedded/cargo-binutils
 
 # Minimum supported Rust version
-The Minimum Supported Rust Version (MSRV) at the moment is 1.68.2
+The Minimum Supported Rust Version (MSRV) at the moment is 1.70.0
 # Demos
 
 [Looper](https://github.com/mtthw-meyer/daisy-looper) - Basic one button looper.

@@ -58,6 +58,6 @@ opt-level = "s" # optimize for binary size
 
 [dev-dependencies]
 embedded-sdmmc = "0.5.0"
-usbd-midi = { git = "https://github.com/btrepp/usbd-midi/" }
+usbd-midi = "0.3.0"
 num_enum = { version = "0.7.3", default-features = false }
 usb-device = "0.3.0"
